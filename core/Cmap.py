@@ -4,29 +4,98 @@
 
 # available color map to plot.
 
-cmap_choices=['Accent', 'Accent_r', 'Blues', 'Blues_r', 'BrBG', 'BrBG_r', 'BuGn', 'BuGn_r', 
-               'BuPu', 'BuPu_r', 'CMRmap', 'CMRmap_r', 'Dark2', 'Dark2_r', 'GnBu', 'GnBu_r', 
-               'Greens', 'Greens_r', 'Greys', 'Greys_r', 'OrRd', 'OrRd_r', 'Oranges', 'Oranges_r', 
-               'PRGn', 'PRGn_r', 'Paired', 'Paired_r', 'Pastel1', 'Pastel1_r', 'Pastel2', 
-               'Pastel2_r', 'PiYG', 'PiYG_r', 'PuBu', 'PuBuGn', 'PuBuGn_r', 'PuBu_r', 
-               'PuOr', 'PuOr_r', 'PuRd', 'PuRd_r', 'Purples', 'Purples_r', 'RdBu', 
-               'RdBu_r', 'RdGy', 'RdGy_r', 'RdPu', 'RdPu_r', 'RdYlBu', 'RdYlBu_r', 
-               'RdYlGn', 'RdYlGn_r', 'Reds', 'Reds_r', 'Set1', 'Set1_r', 'Set2', 
-               'Set2_r', 'Set3', 'Set3_r', 'Spectral', 'Spectral_r', 'Wistia', 
-               'Wistia_r', 'YlGn', 'YlGnBu', 'YlGnBu_r', 'YlGn_r', 'YlOrBr', 'YlOrBr_r', 
-               'YlOrRd', 'YlOrRd_r', 'afmhot', 'afmhot_r', 'autumn', 'autumn_r', 'binary', 
-               'binary_r', 'bone', 'bone_r', 'brg', 'brg_r', 'bwr', 'bwr_r', 'cividis', 
-               'cividis_r', 'cool', 'cool_r', 'coolwarm', 'coolwarm_r', 'copper', 'copper_r', 
-               'cubehelix', 'cubehelix_r', 'flag', 'flag_r', 'gist_earth', 'gist_earth_r', 
-               'gist_gray', 'gist_gray_r', 'gist_heat', 'gist_heat_r', 'gist_ncar', 
-               'gist_ncar_r', 'gist_rainbow', 'gist_rainbow_r', 'gist_stern', 
-               'gist_stern_r', 'gist_yarg', 'gist_yarg_r', 'gnuplot', 'gnuplot2', 
-               'gnuplot2_r', 'gnuplot_r', 'gray', 'gray_r', 'hot', 'hot_r', 'hsv', 'hsv_r', 
-               'inferno', 'inferno_r', 'jet', 'jet_r', 'magma', 'magma_r', 'nipy_spectral', 
-               'nipy_spectral_r', 'ocean', 'ocean_r', 'pink', 'pink_r', 'plasma', 'plasma_r', 
-               'prism', 'prism_r', 'rainbow', 'rainbow_r', 'seismic', 'seismic_r', 'spring', 
-               'spring_r', 'summer', 'summer_r', 'tab10', 'tab10_r', 'tab20', 'tab20_r', 
-               'tab20b', 'tab20b_r', 'tab20c', 'tab20c_r', 'terrain', 'terrain_r', 
-               'twilight', 'twilight_r', 'twilight_shifted', 'twilight_shifted_r', 
-               'viridis', 'viridis_r', 'winter', 'winter_r']
+from matplotlib import colormaps as mpl_cm
 
+import numpy as np
+
+class ColorSetError(Exception):
+    def __init__(self, *args: object) -> None:
+        super().__init__(*args)
+
+class ColorSet:
+    def __init__(
+            self,
+            colormap:str        =   None,
+            colorset:list       =   [(0.706, 0.847, 0.631, 1.0),(0.663, 0.627, 0.843, 1.0)],
+            **cmap_options:dict
+            ) -> None:
+        """
+        Class ColorSet
+        ----------
+            a iterable object of color set.
+            initialize by given a list of color, or name of matplotlib colormap.
+
+        Parameters:
+        ----------
+            colorset : list
+                list or array like, a list of color. default is [light-green, light-purple]\n
+                each color element should be a valid matplotlib color value, for example:\n
+                1. RGB(A) tuple : (1, 0.5, 0.5, 0.5)\n
+                2. hex RGB string : "#0000ff"\n
+                3. color name string : "red"\n
+                more detail : https://matplotlib.org/stable/tutorials/colors/colors.html
+            
+            colormap : str
+                a name of matplotlib colormap.\n
+                more detail : https://matplotlib.org/stable/tutorials/colors/colormaps.html
+
+            **cmap_option:
+                keyword arguments to specify how to use the matplotlib cmap.
+
+                ncolor : int
+                    select number of color evenly from colormap.
+                init : int
+                    the first color index in selected colorset.
+                dist : int
+                    the index spacing from last output color.
+            
+        method:
+        ----------
+            next
+                output a color from colorset.
+        """
+        # cmap options
+        self.cmap_option = {
+                'init'      :0,
+                'dist'      :1,
+                'ncolor'    :2, 
+            }
+        # colorset and colormap
+        if colormap in mpl_cm.keys():
+            for key in cmap_options:
+                if key in self.cmap_option.keys():
+                    self.cmap_option[key] = cmap_options[key]
+                else:
+                    pass
+            cm = mpl_cm[colormap]
+            self.colorset:np.ndarray = cm(np.linspace(0,1,self.cmap_option['ncolor']))
+            self.this = self.cmap_option['init']
+        elif len(colorset) != 0:
+            self.colorset = colorset
+            self.this = 0
+            self.cmap_option = {
+                'init'      :0,
+                'dist'      :1,
+                'ncolor'    :len(colorset), 
+            }
+        else:
+            raise ColorSetError("Invalid arguments for colorset.")
+    # get next color
+    def next(self):
+        # return in this iter
+        to_return = self.colorset[self.this]
+        # update this
+        self.this = self.this + self.cmap_option['dist']
+        # move this back in ncolor, to loop
+        if self.this >= self.cmap_option['ncolor']:
+            self.this = self.this % self.cmap_option['ncolor']
+        return to_return
+    # iterable
+    def __iter__(self):
+        return self
+    def __next__(self):
+        return self.next()
+    # subscriptable
+    def __getitem__(self,key:int):
+        self.this = key
+        return self.next()

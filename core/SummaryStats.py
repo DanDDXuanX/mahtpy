@@ -7,17 +7,17 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
-class MahtplotError(Exception):
+class SumstatsError(Exception):
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
 
 class SummaryStats:
     # class variables
     chr_len_dict:dict = {
-        'hg38' : Path('./CHR.len')
+        'hg38' : Path('./assets/CHR.len')
     }
     gene_pos_dict:dict = {
-        'hg38' : Path('./KnownCanonicalGene.Drop.hg38.txt')
+        'hg38' : Path('./assets/KnownCanonicalGene.Drop.hg38.txt')
     }
     # init with a file, pd.DF or a np.2darray
     def __init__(
@@ -52,13 +52,13 @@ class SummaryStats:
                 else:
                     self.data = pd.read_csv(filepath,sep=seperator)
             except Exception as E:
-                raise MahtplotError(
+                raise SumstatsError(
                     "Unable to load file '{}' as a DataFrame, due to: {}"
                     .format(filepath,E)
                 )
             # n col is 1, bad seperator.
             if self.data.shape[1] == 1:
-                raise MahtplotError(
+                raise SumstatsError(
                     "Error occurred while seperating columns with seperator '{}'"
                     .format(seperator)
                 )
@@ -69,21 +69,21 @@ class SummaryStats:
         elif array_input is not None:
             # check if array is 2 dim
             if array_input.ndim != 2:
-                raise MahtplotError(
+                raise SumstatsError(
                         "Dimension of array like input is not 2."
                     )
             else:
                 self.data = pd.DataFrame(array_input)
         # No input Error
         else:
-            raise MahtplotError(
+            raise SumstatsError(
                 "Need an input to initialize SummaryStats."
             )
         # keep the specified cols
         try:
             self.data = self.data[list(col_name.values())].copy()
         except KeyError as E:
-            raise MahtplotError(
+            raise SumstatsError(
                 "Specified columns: {}".format(E)
             )
         # change the col name of table
@@ -100,7 +100,7 @@ class SummaryStats:
             self.data['size'] = self.data['size'].astype(int)
             self.data['pvalue'] = self.data['pvalue'].astype(float).replace({0:1e-300})
         except ValueError as E:
-            MahtplotError(
+            SumstatsError(
                 "Summary Table contain invalid value, due to: {}"
                 .format(E)
             )
@@ -108,7 +108,7 @@ class SummaryStats:
         self.data['log10_pvalue'] = -np.log10(self.data['pvalue'])
         # load chrlen and gene pos of specified ref genome
         if ref_genome not in self.chr_len_dict.keys():
-            raise MahtplotError(
+            raise SumstatsError(
                 "The specified reference genome {} is not available."
                 .format(ref_genome)
             )
@@ -118,22 +118,27 @@ class SummaryStats:
     # load chrlen and gene pos of specified ref genome
     def load_info(self)->None:
         # length of chrom
-        if self.chr_len_dict[self.ref_genome] is not pd.Series:
-            self.chr_len_dict[self.ref_genome] = pd.read_csv(
-            self.chr_len_dict[self.ref_genome],
-            sep       = ' ',
-            names     = ['chrom','len'],
-            index_col = 'chrom'
-            )['len']
+        if type(self.chr_len_dict[self.ref_genome]) is not pd.Series:
+            readfile = pd.read_csv(
+                self.chr_len_dict[self.ref_genome],
+                sep   = ' ',
+                names = ['chrom','len'],
+            )
+            readfile['chrom'] = self.reformat_chrom(readfile['chrom'])
+            self.chr_len_dict[self.ref_genome] = readfile.set_index('chrom')['len']
         else:
             pass
         self.chr_len:pd.Series = self.chr_len_dict[self.ref_genome]
         # position of known gene on ref genome
-        if self.gene_pos_dict[self.ref_genome] is not pd.DataFrame:
-            self.gene_pos_dict[self.ref_genome] = pd.read_csv(
-            self.gene_pos_dict[self.ref_genome],
-            sep = '\t'
+        if type(self.gene_pos_dict[self.ref_genome]) is not pd.DataFrame:
+            readfile = pd.read_csv(
+                self.gene_pos_dict[self.ref_genome],
+                sep = '\t'
             )
+            readfile['#hg38.knownCanonical.chrom'] = self.reformat_chrom(
+                readfile['#hg38.knownCanonical.chrom']
+            )
+            self.gene_pos_dict[self.ref_genome] = readfile
         else:
             pass
         self.known_gene:pd.DataFrame = self.gene_pos_dict[self.ref_genome]
@@ -151,7 +156,7 @@ class SummaryStats:
         
         Returns:
         ----------
-            Series
+            theta   : Series
                 theta (postion to plot) value of each variants.
         """
         n_chrom:int = self.data['chrom'].max()
@@ -164,7 +169,7 @@ class SummaryStats:
         chr_len_pre[0]    = 0
         chr_len_total = chr_len_pre[n_chrom]
         # get the global pos (theta) of each variants
-        self.data['theta'] = (
+        theta:pd.Series = (
             np.frompyfunc((lambda chrom,pos : pos + chr_len_pre[chrom-1]), 2, 1)
             (
                 self.data['chrom'],
@@ -173,7 +178,7 @@ class SummaryStats:
             / chr_len_total * radian
         )
         # return
-        return self.data['theta']
+        return theta
     # convert chrom col as int type
     def reformat_chrom(self,chr_col:pd.Series)->pd.Series:
         """
@@ -204,6 +209,8 @@ class SummaryStats:
                         return 23
                     if x == "Y":
                         return 24
+                    if x == 'M':
+                        return 25
                     else:
                         return int(x)
                 # not supported type
@@ -211,7 +218,7 @@ class SummaryStats:
                     return -1
             except ValueError:
                 return -1
-        return np.frompyfunc(reformat,1,1)(chr_col)
+        return np.frompyfunc(reformat,1,1)(chr_col).astype(int)
     # get the genome wide significant, study wide significant, and not significant variants.
     def significant(
             self,
@@ -222,7 +229,7 @@ class SummaryStats:
         """
         get a subset of summary variants,
         at threshold of genome wide significant, 
-        study wide significant, and not significant.
+        study wide significant, or not significant.
 
         Parameters:
         ----------
@@ -238,7 +245,7 @@ class SummaryStats:
         Returns:
         ----------
             DataFrame
-                subset of variants, at specified significant level.
+                subset of variants , at specified significant level.
         """
         mulitest_threshold = threshold / mulitest
         if level == 'negative':
@@ -248,4 +255,90 @@ class SummaryStats:
         elif level == 'study':
             return self.data.query("pvalue <= @mulitest_threshold")
         else:
-            raise MahtplotError("Invalid significant level: '{}'".format(level))
+            raise SumstatsError("Invalid significant level: '{}'".format(level))
+    # get mapped gene of variants.
+    def get_gene(
+            self,
+            threshold:float = 5e-8,
+            level:str = 'snp',
+            window:int = 500000,
+            ) -> pd.Series:
+        """
+        get the mapped gene names of each significant variant,
+
+        Parameters:
+        ----------
+            threshold   : float
+                genome-wide significant threshold, default is 5e-8.
+            level       : str
+                possible value in ['snp','gene','loci'],\n
+                if level is 'snp', return all significant SNPs with mapped genes annotated,\n
+                if level is 'gene', only return the top SNPs of each mapped gene,\n
+                if level is 'loci', adjacent significant SNPs are merged into a loci, only return the top snps of each loci.\n
+                default is 'snp'.
+            window      : int
+                significant SNPs which distance less than window are merged into a loci, window default is 500kb
+        
+        Returns:
+        ----------
+            Series
+                mapped gene name list of variants which reached the threshold.
+        """
+        # get mapped gene from 
+        def mapped(chrom,pos): 
+            # if chrom == 23:
+            #     chrom = 'chrX'
+            # else:
+            #     chrom = 'chr'+str(chrom)
+            Chr_b=self.known_gene['#hg38.knownCanonical.chrom']==chrom
+            this_chrom = self.known_gene[Chr_b]
+            Bg_b = this_chrom['hg38.knownCanonical.chromStart']<=pos
+            Ed_b = this_chrom['hg38.knownCanonical.chromEnd']>=pos
+            try:
+                return this_chrom[Bg_b&Ed_b]['hg38.kgXref.geneSymbol'].values[0]
+            except:
+                return np.nan
+        # get all significant snps
+        sig = self.significant(threshold=threshold).copy()
+        # get locusIDS
+        sig = sig.sort_values(by=['chrom','pos'])
+        locusID = 0
+        last = None
+        for key,this in sig.iterrows():
+            if last is None:
+                pass
+            else:
+                if last['chrom']!=this['chrom']:
+                    locusID += 1
+                elif this['pos'] - last['pos'] > window:
+                    locusID += 1
+                else:
+                    pass
+            sig.loc[key,'locusID'] = locusID
+            last = this
+        sig['locusID'] = sig['locusID'].astype(int)
+        if level == 'loci':
+            sig = sig.loc[sig.groupby('locusID')['log10_pvalue'].idxmax()].copy()
+        # get all gene annotats
+        sig['gene'] = (
+            np.frompyfunc(mapped, 2, 1)(
+                sig['chrom'], sig['pos']
+            )
+        )
+        # case : level
+        if level == 'snp':
+            return sig
+        elif level == 'gene':
+            return (
+                sig
+                .dropna(subset='gene')
+                .loc[
+                    sig
+                    .groupby('gene')['log10_pvalue']
+                    .idxmax()
+                ] 
+            )
+        elif level == 'loci':
+            return sig
+        else:
+            raise SumstatsError("Invalid gene annotate level: '{}'".format(level))
