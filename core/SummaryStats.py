@@ -143,7 +143,17 @@ class SummaryStats:
             pass
         self.known_gene:pd.DataFrame = self.gene_pos_dict[self.ref_genome]
     # calculate the display position of variants
-    def get_theta(self, chr_sep:int=20000000, radian:float=2*np.pi)->pd.Series:
+    def get_theta(
+            self,
+            chr_sep:int     = 20000000, 
+            radian:float    = 2*np.pi, 
+            chrom:int       = -1,
+            from_bp:int     = -1,
+            to_bp:int       = -1,
+            locus:int       = -1,
+            threshold       = 5e-8,
+            window          = 500000
+        )->pd.Series:
         """
         calculate the display position in mathplot of each variants.\n
 
@@ -153,32 +163,80 @@ class SummaryStats:
                 distance between chromosomes, unit is bp, default value is 20M.
             radian  : float
                 total radian, or range in x axis to plot mahtplot, default value is 2*pi
-        
+            chrom   : int
+                only display the specified chromosome, default is -1, means show all chromosomes.
+            from_bp : int
+            to_bp   : int
+                only effective with chrom specified. the start and end pos to display.
+            locus   : int
+                only display the specified locusID, default is -1, means inoperative.
+                Note: specified locus has higher priority than specified chromosome
+            threshold : float
+                genome-wide significant threshold, default is 5e-8.
+            window      : int
+                significant SNPs which distance less than window are merged into a loci, window default is 500kb
         Returns:
         ----------
-            theta   : Series
-                theta (postion to plot) value of each variants.
+            DataFrame
+                SumStats with theta (postion to plot) value of variants in specified range.
         """
-        n_chrom:int = self.data['chrom'].max()
-        # number of bp before each chrom
-        chr_len_pre:pd.Series = (
-            self.chr_len[:n_chrom].cumsum() + 
-            np.arange(1,n_chrom+1,1,dtype=int) * chr_sep
+        # specify a locus to display
+        if locus != -1:
+            locus_top   = self.significant(threshold=threshold)
+            locus_top   = locus_top.loc[locus_top.query("locusID==@locus")['log10_pvalue'].idxmax()]
+            # return values
+            chrom   = locus_top['chrom']
+            from_bp = locus_top['pos'] - window
+            to_bp   = locus_top['pos'] + window
+            # sumstats range to display
+            sumstats_to_display = (
+                self.data[self.data['chrom']==chrom]
+                .query("pos >= @from_bp and pos < @to_bp")
             )
-        chr_len_pre.index = np.arange(1,n_chrom+1,1,dtype=int)
-        chr_len_pre[0]    = 0
-        chr_len_total = chr_len_pre[n_chrom]
-        # get the global pos (theta) of each variants
-        theta:pd.Series = (
-            np.frompyfunc((lambda chrom,pos : pos + chr_len_pre[chrom-1]), 2, 1)
-            (
-                self.data['chrom'],
-                self.data['pos']
+            chr_len_total = 2 * window
+            theta:pd.Series = (
+                (sumstats_to_display['pos'] - from_bp)
+                / chr_len_total * radian
             )
-            / chr_len_total * radian
-        )
+        # specify a chrom range to display
+        elif chrom != -1:
+            if from_bp == -1:
+                from_bp = 0
+            if to_bp == -1:
+                to_bp = self.chr_len[chrom]
+            sumstats_to_display = (
+                self.data[self.data['chrom']==chrom]
+                .query("pos >= @from_bp and pos < @to_bp")
+            )
+            chr_len_total = to_bp - from_bp
+            theta:pd.Series = (
+                (sumstats_to_display['pos'] - from_bp)
+                / chr_len_total * radian
+            )
+        # display whole genome
+        else:
+            sumstats_to_display = self.data.copy()
+            n_chrom:int = sumstats_to_display.max()
+            # number of bp before each chrom
+            chr_len_pre:pd.Series = (
+                self.chr_len[:n_chrom].cumsum() + 
+                np.arange(1,n_chrom+1,1,dtype=int) * chr_sep
+                )
+            chr_len_pre.index = np.arange(1,n_chrom+1,1,dtype=int)
+            chr_len_pre[0]    = 0
+            chr_len_total = chr_len_pre[n_chrom]
+            # get the global pos (theta) of each variants
+            theta:pd.Series = (
+                np.frompyfunc((lambda chrom,pos : pos + chr_len_pre[chrom-1]), 2, 1)
+                (
+                    sumstats_to_display['chrom'],
+                    sumstats_to_display['pos']
+                )
+                / chr_len_total * radian
+            )
         # return
-        return theta
+        sumstats_to_display['theta'] = theta
+        return sumstats_to_display, [chrom,from_bp,to_bp]
     # convert chrom col as int type
     def reformat_chrom(self,chr_col:pd.Series)->pd.Series:
         """
@@ -224,7 +282,8 @@ class SummaryStats:
             self,
             level:str       = 'study',
             threshold:float = 5e-8,
-            mulitest:int    = 1
+            mulitest:int    = 1,
+            window:int      = 500000         
             ) -> pd.DataFrame:
         """
         get a subset of summary variants,
@@ -241,19 +300,46 @@ class SummaryStats:
                 genome-wide significant threshold, default is 5e-8.
             mulitest : int
                 mulitple test time, to adjust study-wide threshold, default is 1.
-        
+            window      : int
+                significant SNPs which distance less than window are merged into a loci, window default is 500kb
         Returns:
         ----------
             DataFrame
                 subset of variants , at specified significant level.
         """
-        mulitest_threshold = threshold / mulitest
+        # if get negative
         if level == 'negative':
             return self.data.query("pvalue > @threshold")
-        elif level == 'genome':
-            return self.data.query("pvalue <= @threshold and pvalue > @mulitest_threshold")
+        # multiple testing threshold
+        mulitest_threshold = threshold / mulitest
+        # get locusIDS
+        significants:pd.DataFrame = (
+            self.data
+            .query( "pvalue <= @threshold" )
+            .sort_values(by=['chrom','pos'])
+            .copy()
+        )
+        locusID = 0
+        last = None
+        for key,this in significants.iterrows():
+            if last is None:
+                pass
+            else:
+                if last['chrom']!=this['chrom']:
+                    locusID += 1
+                elif this['pos'] - last['pos'] > window:
+                    locusID += 1
+                else:
+                    pass
+            significants.loc[key,'locusID'] = locusID
+            last = this
+        self.window = window
+        significants['locusID'] = significants['locusID'].astype(int)
+        # return significant variants
+        if level == 'genome':
+            return significants.query("pvalue > @mulitest_threshold")
         elif level == 'study':
-            return self.data.query("pvalue <= @mulitest_threshold")
+            return significants.query("pvalue <= @mulitest_threshold")
         else:
             raise SumstatsError("Invalid significant level: '{}'".format(level))
     # get mapped gene of variants.
@@ -299,24 +385,7 @@ class SummaryStats:
             except:
                 return np.nan
         # get all significant snps
-        sig = self.significant(threshold=threshold).copy()
-        # get locusIDS
-        sig = sig.sort_values(by=['chrom','pos'])
-        locusID = 0
-        last = None
-        for key,this in sig.iterrows():
-            if last is None:
-                pass
-            else:
-                if last['chrom']!=this['chrom']:
-                    locusID += 1
-                elif this['pos'] - last['pos'] > window:
-                    locusID += 1
-                else:
-                    pass
-            sig.loc[key,'locusID'] = locusID
-            last = this
-        sig['locusID'] = sig['locusID'].astype(int)
+        sig = self.significant(threshold=threshold,window=window).copy()
         if level == 'loci':
             sig = sig.loc[sig.groupby('locusID')['log10_pvalue'].idxmax()].copy()
         # get all gene annotats

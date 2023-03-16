@@ -25,6 +25,7 @@ class MahtPlot:
             colorset:ColorSet       = ColorSet(),
             style:str               = 'classic',
             layout:str              = 'horizontal',
+            marker:str              = 'scatter',
             showgene:bool           = True,
             title:str               = '',
             chr_sep:int             = 20000000,
@@ -40,6 +41,12 @@ class MahtPlot:
             for ss in sumstats:
                 if type(ss) is not SummaryStats:
                     raise MahtplotError("Invalid sumstats type: {}".format(type(ss)))
+                if ss.ref_genome != last.ref_genome:
+                    raise MahtplotError(
+                        "Reference Genome ({} and {}) of input SumStats did not match."
+                        .format(ss.ref_genome,last.ref_genome)
+                        )
+                last = ss
             self.sumstats:list = list(sumstats)
             self.multitest:int = len(sumstats)
         else:
@@ -52,14 +59,18 @@ class MahtPlot:
         # colorset
         self.colorset:ColorSet = colorset
         # style and layout
-        if style in ['classic','overlap','symmetric','moderate']:
+        if style in ['classic','overlap','symmetric']:
             self.style:str = style
         else:
             raise MahtplotError("Invalid mahtplot style '{}'".format(style))
-        if layout in ['vertical','horizontal','cavern','radial']:
+        if layout in ['vertical','horizontal','cavern','firework']:
             self.layout:str = layout
         else:
             raise MahtplotError("Invalid mahtplot layout '{}'".format(layout))
+        if marker in ['scatter','lolipop']:
+            self.marker:str = marker
+        else:
+            raise MahtplotError("Invalid mahtplot marker '{}'".format(layout))
         # configs
         self.showgene:bool      = showgene
         self.title:str          = title
@@ -79,6 +90,8 @@ class MahtPlot:
             self,
             figsize:tuple           = (16,8),
             chrom:int               = -1,
+            from_bp:int             = -1,
+            to_bp:int               = -1,
             locus:int               = -1,
         ):
         # figure and axes
@@ -93,7 +106,20 @@ class MahtPlot:
             else:
                 self.ax:list = self.figure.subplots(self.multitest, 1)
         # TODO: 根据 chrom 和 locus 的指定，取SumStats的subset，再考虑画图。
-    def plot(
+        for idx, SS in self.sumstats:
+            SS:SummaryStats
+            if idx == 0:
+                plot_sumstats, chrange = SS.get_theta(
+                    chr_sep = self.chr_sep,
+                    radian  = self.radian,
+                    chrom = chrom,
+                    from_bp = from_bp,
+                    to_bp = to_bp,
+                    locus = locus,
+                    threshold = self.threshold,
+                    window = self.window
+                )
+    def plot_maht(
             self,
             axes:Axes,
             sumstats:SummaryStats,
