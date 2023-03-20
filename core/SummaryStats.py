@@ -16,6 +16,14 @@ class SummaryStats:
     chr_len_dict:dict = {
         'hg38' : Path('./assets/CHR.len')
     }
+    heterosome_dict:dict = {
+        'hg38' : {
+            'autosome'  : 22  ,
+            23          : 'X' ,
+            24          : 'Y' ,
+            25          : 'M'
+        }
+    }
     gene_pos_dict:dict = {
         'hg38' : Path('./assets/KnownCanonicalGene.Drop.hg38.txt')
     }
@@ -106,6 +114,10 @@ class SummaryStats:
             )
         # calculate the log 10 pvalue
         self.data['log10_pvalue'] = -np.log10(self.data['pvalue'])
+        # range specify of sumstats
+        self.chrom = -1
+        self.from_bp = -1
+        self.to_bp = -1
         # load chrlen and gene pos of specified ref genome
         if ref_genome not in self.chr_len_dict.keys():
             raise SumstatsError(
@@ -142,27 +154,23 @@ class SummaryStats:
         else:
             pass
         self.known_gene:pd.DataFrame = self.gene_pos_dict[self.ref_genome]
-    # calculate the display position of variants
-    def get_theta(
+        # heterosome of ref genome
+        self.heterosome:dict = self.heterosome_dict[self.ref_genome]
+    # slice SumStats in specified range
+    def slice(
             self,
-            chr_sep:int     = 20000000, 
-            radian:float    = 2*np.pi, 
             chrom:int       = -1,
             from_bp:int     = -1,
             to_bp:int       = -1,
             locus:int       = -1,
-            threshold       = 5e-8,
-            window          = 500000
-        )->pd.Series:
+            threshold:float = 5e-8,
+            window:int      = 500000
+    ):
         """
-        calculate the display position in mathplot of each variants.\n
+        get a slice of sumstats data, from specified range, or loci.\n
 
         Parameters:
         ----------
-            chr_sep : int
-                distance between chromosomes, unit is bp, default value is 20M.
-            radian  : float
-                total radian, or range in x axis to plot mahtplot, default value is 2*pi
             chrom   : int
                 only display the specified chromosome, default is -1, means show all chromosomes.
             from_bp : int
@@ -173,70 +181,77 @@ class SummaryStats:
                 Note: specified locus has higher priority than specified chromosome
             threshold : float
                 genome-wide significant threshold, default is 5e-8.
-            window      : int
+            window  : int
                 significant SNPs which distance less than window are merged into a loci, window default is 500kb
         Returns:
         ----------
-            DataFrame
-                SumStats with theta (postion to plot) value of variants in specified range.
+            SlicedSumStats
+                SlicedSumStats of variants in specified range.
         """
         # specify a locus to display
-        if locus != -1:
+        if locus >= 0:
             locus_top   = self.significant(threshold=threshold)
             locus_top   = locus_top.loc[locus_top.query("locusID==@locus")['log10_pvalue'].idxmax()]
             # return values
             chrom   = locus_top['chrom']
             from_bp = locus_top['pos'] - window
             to_bp   = locus_top['pos'] + window
-            # sumstats range to display
-            sumstats_to_display = (
-                self.data[self.data['chrom']==chrom]
-                .query("pos >= @from_bp and pos < @to_bp")
-            )
-            chr_len_total = 2 * window
-            theta:pd.Series = (
-                (sumstats_to_display['pos'] - from_bp)
-                / chr_len_total * radian
-            )
+            # return a sliced sumstats from range
+            return SlicedSumStats(father=self, chrom=chrom, from_bp=from_bp, to_bp=to_bp)
         # specify a chrom range to display
-        elif chrom != -1:
-            if from_bp == -1:
-                from_bp = 0
-            if to_bp == -1:
-                to_bp = self.chr_len[chrom]
-            sumstats_to_display = (
-                self.data[self.data['chrom']==chrom]
-                .query("pos >= @from_bp and pos < @to_bp")
-            )
-            chr_len_total = to_bp - from_bp
-            theta:pd.Series = (
-                (sumstats_to_display['pos'] - from_bp)
-                / chr_len_total * radian
-            )
-        # display whole genome
         else:
-            sumstats_to_display = self.data.copy()
-            n_chrom:int = sumstats_to_display.max()
-            # number of bp before each chrom
+            return SlicedSumStats(father=self, chrom=chrom, from_bp=from_bp, to_bp=to_bp)
+    # calculate the display position of variants
+    def get_theta(
+            self,
+            chr_sep:int     = 20000000, 
+            radian:float    = 2*np.pi, 
+        )->tuple:
+        """
+        calculate the display position in mathplot of each variants.\n
+
+        Parameters:
+        ----------
+            chr_sep : int
+                distance between chromosomes, unit is bp, default value is 20M.
+            radian  : float
+                total radian, or range in x axis to plot mahtplot, default value is 2*pi
+        Returns:
+        ----------
+            Series
+                theta (postion to plot) value of variants.
+        """
+        chrom_max:int = self.data['chrom'].max()
+        if self.chrom <= 0:
+            # genome wide
+            n_chrom = chrom_max
             chr_len_pre:pd.Series = (
                 self.chr_len[:n_chrom].cumsum() + 
                 np.arange(1,n_chrom+1,1,dtype=int) * chr_sep
                 )
             chr_len_pre.index = np.arange(1,n_chrom+1,1,dtype=int)
             chr_len_pre[0]    = 0
-            chr_len_total = chr_len_pre[n_chrom]
+            self.chr_len_total:int = chr_len_pre[n_chrom]
             # get the global pos (theta) of each variants
-            theta:pd.Series = (
-                np.frompyfunc((lambda chrom,pos : pos + chr_len_pre[chrom-1]), 2, 1)
-                (
-                    sumstats_to_display['chrom'],
-                    sumstats_to_display['pos']
-                )
-                / chr_len_total * radian
+            self.theta:np.ufunc = np.frompyfunc(
+                func=(lambda chrom,pos:(pos + chr_len_pre[chrom-1]) / self.chr_len_total * radian),
+                nin=2, nout=1
+            )
+        else:
+            # single chrom
+            self.chr_len_total = self.to_bp - self.from_bp
+            self.theta:np.ufunc = np.frompyfunc(
+                func=lambda chrom,pos:(pos-self.from_bp)/ self.chr_len_total * radian
             )
         # return
-        sumstats_to_display['theta'] = theta
-        return sumstats_to_display, [chrom,from_bp,to_bp]
+        theta:pd.Series = (
+            self.theta
+            (
+                self.data['chrom'],
+                self.data['pos']
+            )
+        )
+        return theta
     # convert chrom col as int type
     def reformat_chrom(self,chr_col:pd.Series)->pd.Series:
         """
@@ -348,7 +363,7 @@ class SummaryStats:
             threshold:float = 5e-8,
             level:str = 'snp',
             window:int = 500000,
-            ) -> pd.Series:
+            ) -> pd.DataFrame:
         """
         get the mapped gene names of each significant variant,
 
@@ -411,3 +426,20 @@ class SummaryStats:
             return sig
         else:
             raise SumstatsError("Invalid gene annotate level: '{}'".format(level))
+
+class SlicedSumStats(SummaryStats):
+    def __init__(self,father:SummaryStats,chrom:int=-1,from_bp:int=-1,to_bp:int=-1):
+        # specify a chrom range to display
+        if chrom > 0:
+            self.chrom = chrom
+            if from_bp == -1:
+                self.from_bp = 0
+            if to_bp == -1:
+                self.to_bp = father.chr_len[chrom]
+            self.data = (
+                father.data[father.data['chrom']==self.chrom]
+                .query("pos >= @self.from_bp and pos < @self.to_bp")
+            )
+            self.ref_genome = father.ref_genome
+        else:
+            self = father

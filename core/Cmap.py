@@ -5,7 +5,7 @@
 # available color map to plot.
 
 from matplotlib import colormaps as mpl_cm
-
+from matplotlib.colors import ColorConverter
 import numpy as np
 
 class ColorSetError(Exception):
@@ -71,7 +71,14 @@ class ColorSet:
             self.colorset:np.ndarray = cm(np.linspace(0,1,self.cmap_option['ncolor']))
             self.this = self.cmap_option['init']
         elif len(colorset) != 0:
-            self.colorset = colorset
+            color_converter = ColorConverter()
+            self.colorset = []
+            for C in colorset:
+                try:
+                    self.colorset.append(color_converter.to_rgba(c=C,alpha=1))
+                except:
+                    ColorSetError("Invalid color key '{}'.".format(C))
+            self.colorset:np.ndarray = np.ndarray(self.colorset)
             self.this = 0
             self.cmap_option = {
                 'init'      :0,

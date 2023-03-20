@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 
-from .SummaryStats import SummaryStats
+from .SummaryStats import SummaryStats,SlicedSumStats
 from .Cmap import ColorSet
 
 import warnings
@@ -109,9 +109,8 @@ class MahtPlot:
         for idx, SS in self.sumstats:
             SS:SummaryStats
             if idx == 0:
-                plot_sumstats, chrange = SS.get_theta(
-                    chr_sep = self.chr_sep,
-                    radian  = self.radian,
+                # first summary, get from specified range
+                plot_sumstats = SS.slice(
                     chrom = chrom,
                     from_bp = from_bp,
                     to_bp = to_bp,
@@ -119,6 +118,23 @@ class MahtPlot:
                     threshold = self.threshold,
                     window = self.window
                 )
+                # recode the return range
+                chrom = plot_sumstats.chrom
+                from_bp = plot_sumstats.from_bp
+                to_bp = plot_sumstats.to_bp
+            else:
+                plot_sumstats = SS.slice(
+                    chrom = chrom,
+                    from_bp = from_bp,
+                    to_bp = to_bp,
+                    locus = -1,
+                    threshold = self.threshold,
+                    window = self.window
+                )
+            if self.layout in ['vertical','horizontal'] and self.style == 'classic':
+                self.chr_color = {}
+                self.plot_maht(axes=self.ax[idx],sumstats=plot_sumstats)
+            # TODO 其他情况
     def plot_maht(
             self,
             axes:Axes,
@@ -127,8 +143,78 @@ class MahtPlot:
         # hide axis
         axes.axis('off')
         # set yrange:
-        ymin = -self.sumstats['log10_pavlue'].max()*0.03
+        ymin = - sumstats.data['log10_pavlue'].max() * 0.03
         ymax = max(
             -np.log10(self.threshold),
-            self.sumstats['log10_pavlue'].max()
+            sumstats.data['log10_pavlue'].max()
             ) * 1.2
+        ylim = ymax - ymin
+        # theta
+        theta = sumstats.get_theta(chr_sep=self.chr_sep,radian=self.radian)
+        # plot outframe
+        # x axis:
+        if len(sumstats.chrom > 0):
+            xmin = sumstats.from_bp
+            xmax = sumstats.to_bp
+        else:
+            n_chrom:int = sumstats.data['chrom'].max()
+            self.chrom_color = {}
+            for chrom in range(1,n_chrom+1): #bar
+                x_loc:float = sumstats.theta(chrom, sumstats.chr_len[chrom]/2)
+                chrom_label_rotate=self.rotate_text(x_loc)
+                # color of this chromosome
+                try:
+                    color_this = self.chrom_color[chrom]
+                except KeyError:
+                    color_this = self.colorset.next()
+                    self.chrom_color[chrom] = color_this
+                # chromosome range
+                axes.bar(
+                    x       = x_loc,
+                    height  = ylim * 3/150,
+                    width   = sumstats.chr_len[chrom]/sumstats.chr_len_total*self.radian,
+                    bottom  = -ylim/50,
+                    ec      = color_this[:3]/2,
+                    color   = color_this,
+                    zorder  = 3
+                    )
+                axes.bar(
+                    x       = x_loc,
+                    height  = ymax,
+                    width   = sumstats.chr_len[chrom]/sumstats.chr_len_total*self.radian,
+                    bottom  = 0,
+                    color   = color_this,
+                    zorder  = 3,
+                    alpha   = 0.1
+                    )
+                # chromosome label
+                chrom_label = (lambda C:str(C) if C < sumstats.heterosome['autosome'] else sumstats.heterosome[C])(chrom)
+                vert_horz = chrom<10 or chrom>sumstats.heterosome['autosome']
+                axes.text(
+                    x       = x_loc,
+                    y       = - ylim * 4/150,
+                    s       = 'chr'+chrom_label,
+                    fontsize= 14,
+                    horizontalalignment = 'center',
+                    verticalalignment   = 'top'
+                    )
+                axes.text(
+                    x       = x_loc,
+                    y       = ymax-ylim*4/150,
+                    s       = chrom_label,
+                    fontdict={
+                        'size'  : {False:16,True:24}[vert_horz],
+                        'weight': 'bold',
+                        'color' : color_this
+                        },
+                    alpha   = 0.2
+                    rotation= {False:90,True:0}[vert_horz]
+                    horizontalalignment = 'center',
+                    verticalalignment   = 'top'
+                )
+    # get the rotation angle of chromosome text label
+    def rotate_text(self,theta):
+        if theta <= np.pi/self.radian :
+            return theta
+        else:
+            return theta - np.pi/self.radian
