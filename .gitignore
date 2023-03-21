@@ -1,4 +1,5 @@
 *.ipynb
 __pycache__
-test.py
+test.*
 .VSCodeCounter
+mahtplot_greenpurple.py

@@ -206,7 +206,7 @@ class SummaryStats:
             self,
             chr_sep:int     = 20000000, 
             radian:float    = 2*np.pi, 
-        )->tuple:
+        )->pd.Series:
         """
         calculate the display position in mathplot of each variants.\n
 
@@ -234,14 +234,14 @@ class SummaryStats:
             self.chr_len_total:int = chr_len_pre[n_chrom]
             # get the global pos (theta) of each variants
             self.theta:np.ufunc = np.frompyfunc(
-                func=(lambda chrom,pos:(pos + chr_len_pre[chrom-1]) / self.chr_len_total * radian),
-                nin=2, nout=1
+                (lambda chrom,pos:(pos + chr_len_pre[chrom-1]) / self.chr_len_total * radian),
+                2,1
             )
         else:
             # single chrom
             self.chr_len_total = self.to_bp - self.from_bp
             self.theta:np.ufunc = np.frompyfunc(
-                func=lambda chrom,pos:(pos-self.from_bp)/ self.chr_len_total * radian
+                lambda chrom,pos:(pos-self.from_bp)/ self.chr_len_total * radian,2,1
             )
         # return
         theta:pd.Series = (
@@ -440,6 +440,10 @@ class SlicedSumStats(SummaryStats):
                 father.data[father.data['chrom']==self.chrom]
                 .query("pos >= @self.from_bp and pos < @self.to_bp")
             )
-            self.ref_genome = father.ref_genome
         else:
-            self = father
+            self.data       = father.data
+            self.chrom      = father.chrom
+            self.from_bp    = father.from_bp
+            self.to_bp      = father.to_bp
+        self.ref_genome = father.ref_genome
+        self.load_info()
