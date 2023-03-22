@@ -334,6 +334,10 @@ class SummaryStats:
             .sort_values(by=['chrom','pos'])
             .copy()
         )
+        # if no signigicant variants in summary
+        if len(significants) == 0:
+            # return emtpy frame
+            return significants
         locusID = 0
         last = None
         for key,this in significants.iterrows():
@@ -372,10 +376,11 @@ class SummaryStats:
             threshold   : float
                 genome-wide significant threshold, default is 5e-8.
             level       : str
-                possible value in ['snp','gene','loci'],\n
+                possible value in ['snp','gene','loci','loci-gene'],\n
                 if level is 'snp', return all significant SNPs with mapped genes annotated,\n
                 if level is 'gene', only return the top SNPs of each mapped gene,\n
                 if level is 'loci', adjacent significant SNPs are merged into a loci, only return the top snps of each loci.\n
+                if level is 'loci-gene', return the top mapped gene in each loci; if no gene is mapped in a loci, this loci will be dropped. \n
                 default is 'snp'.
             window      : int
                 significant SNPs which distance less than window are merged into a loci, window default is 500kb
@@ -424,6 +429,17 @@ class SummaryStats:
             )
         elif level == 'loci':
             return sig
+        elif level == 'loci-gene':
+            return (
+                sig
+                .loc[
+                    sig
+                    .dropna(subset='gene')
+                    .groupby('locusID')['log10_pvalue']
+                    .idxmax()
+                    ]
+                .copy()
+                )
         else:
             raise SumstatsError("Invalid gene annotate level: '{}'".format(level))
 
@@ -434,8 +450,12 @@ class SlicedSumStats(SummaryStats):
             self.chrom = chrom
             if from_bp == -1:
                 self.from_bp = 0
+            else:
+                self.from_bp = from_bp
             if to_bp == -1:
                 self.to_bp = father.chr_len[chrom]
+            else:
+                self.to_bp = to_bp
             self.data = (
                 father.data[father.data['chrom']==self.chrom]
                 .query("pos >= @self.from_bp and pos < @self.to_bp")

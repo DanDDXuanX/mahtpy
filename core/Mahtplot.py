@@ -32,7 +32,8 @@ class MahtPlot:
             chr_sep:int             = 20000000,
             radian:float            = 2 * np.pi,
             threshold:float         = 5e-8,
-            window:int              = 500000
+            window:int              = 500000,
+            geneXdist:float         = 1.0
             ) -> None:
         # summary
         if type(sumstats) is SummaryStats:
@@ -40,6 +41,7 @@ class MahtPlot:
             self.multitest:int = 1
         elif type(sumstats) in [list,tuple,np.ndarray]:
             # check if all element of list is SummaryStats
+            last = sumstats[0]
             for ss in sumstats:
                 if type(ss) is not SummaryStats:
                     raise MahtplotError("Invalid sumstats type: {}".format(type(ss)))
@@ -53,11 +55,6 @@ class MahtPlot:
             self.multitest:int = len(sumstats)
         else:
             raise MahtplotError('Invalid sumstats argument.')
-        # init the rcParams
-        plt.rcParams['figure.subplot.left']=0.1
-        plt.rcParams['figure.subplot.right']=0.9
-        plt.rcParams['figure.subplot.top']=0.9
-        plt.rcParams['figure.subplot.bottom']=0.1
         # colorset
         self.colorset:ColorSet = colorset
         # style and layout
@@ -74,18 +71,18 @@ class MahtPlot:
         else:
             raise MahtplotError("Invalid mahtplot marker '{}'".format(layout))
         # show gene method:
-        if showgene in [False,'gene','loci']:
+        if showgene in [False,'gene','loci','loci-gene']:
             if showgene == False:
                 self.showgene = 'False'
             else:
                 self.showgene = showgene
         # configs
-        self.showgene:str       = showgene
         self.title:str          = title
         self.radian:float       = radian
         self.threshold:float    = threshold
         self.chr_sep:int        = chr_sep
         self.window:int         = window
+        self.geneXdist:int      = geneXdist
         # MahtPlot class is not suitable to show overmany summary
         if self.multitest >= 5:
             warnings.warn('''
@@ -103,7 +100,24 @@ class MahtPlot:
             to_bp:int               = -1,
             locus:int               = -1,
             quick:bool              = True
-        )->Figure:
+        ):
+        # figsize
+        self.width  = figsize[0]
+        self.height = figsize[1]
+        self.WHR    = self.width/self.height
+        self.xzoom  = self.width/16
+        self.yzoom  = self.height/8
+        # init the rcParams
+        if self.WHR > 1:
+            plt.rcParams['figure.subplot.left']     = 0.1/self.WHR
+            plt.rcParams['figure.subplot.right']    = 1 - 0.1/self.WHR
+            plt.rcParams['figure.subplot.top']      = 0.9
+            plt.rcParams['figure.subplot.bottom']   = 0.1
+        else:
+            plt.rcParams['figure.subplot.left']     = 0.1
+            plt.rcParams['figure.subplot.right']    = 0.9
+            plt.rcParams['figure.subplot.top']      = 1 - 0.1 * self.WHR
+            plt.rcParams['figure.subplot.bottom']   = 0.1 * self.WHR
         # figure and axes
         self.figure:Figure = plt.figure(figsize=figsize)
         # if only 1 SumStats, or use circular layout
@@ -112,10 +126,11 @@ class MahtPlot:
         # if mulit SumStats
         else:
             if self.layout == 'vertical':
-                self.ax:list = self.figure.subplots(1, self.multitest)
+                self.ax:list        = self.figure.subplots(1, self.multitest)
+                self.xzoom:float    = self.xzoom / self.multitest 
             else:
-                self.ax:list = self.figure.subplots(self.multitest, 1)
-        # TODO: 根据 chrom 和 locus 的指定，取SumStats的subset，再考虑画图。
+                self.ax:list        = self.figure.subplots(self.multitest, 1)
+                self.yzoom:float    = self.yzoom / self.multitest
         for idx, SS in enumerate(self.sumstats):
             SS:SummaryStats
             if idx == 0:
@@ -141,37 +156,36 @@ class MahtPlot:
                     threshold = self.threshold,
                     window = self.window
                 )
-            if self.layout in ['vertical','horizontal'] and self.style == 'classic':
-                self.plot_maht(axes=self.ax[idx],sumstats=plot_sumstats,quick=quick)
+            if self.style == 'classic':
+                if self.layout == 'horizontal':
+                    self.plot_maht_horiz(axes=self.ax[idx],sumstats=plot_sumstats,quick=quick)
+                elif self.layout == 'vertical':
+                    self.plot_maht_vert(axes=self.ax[idx],sumstats=plot_sumstats,quick=quick)
+            elif self.style == 'overlap':
+                pass
+            elif self.style == 'symmetric':
+                pass
             # TODO 其他情况
-        return self.figure
-    def plot_maht(
+    def plot_maht_vert(self):
+        pass
+    def plot_classic_axis_horiz(
             self,
             axes:Axes,
             sumstats:SummaryStats,
-            quick:bool = True
-        ):
-        # hide axis
-        axes.axis('off')
-        # set yrange:
-        ymax = max(
-            -np.log10(self.threshold),
-            sumstats.data['log10_pvalue'].max()
-            ) * 1.2
+            ymax:float,
+            ):
+        # yunit
         yunit = ymax/150
         ymin = - 5 * yunit
         # ylim = ymax - ymin
         axes.set_ylim(ymin,ymax)
-        # theta
-        sumstats.data['theta'] = sumstats.get_theta(chr_sep=self.chr_sep,radian=self.radian)
-        # plot outframe
         # x axis:
         if sumstats.chrom > 0:
             x_min = sumstats.theta(...,sumstats.from_bp)
             x_max = sumstats.theta(...,sumstats.to_bp)
             x_sep = np.linspace(sumstats.from_bp,sumstats.to_bp,11)
             # -----
-            axes.plot([x_min,x_max],[0,0],color='k')
+            axes.plot([x_min,x_max],[0,0],color='k',zorder=3)
             for x in x_sep:
                 x_loc = sumstats.theta(...,x)
                 axes.plot([x_loc,x_loc],[0,-2*yunit],color='k')
@@ -182,16 +196,18 @@ class MahtPlot:
                     s       = '%.2f'%(x/1e6),
                     fontsize= 14,
                     horizontalalignment = 'center',
-                    verticalalignment   = 'top'
+                    verticalalignment   = 'top',
+                    zorder = 3
                     )
             # CHROM
             axes.text(
                 x   = np.pi,
-                y   = -10*yunit,
+                y   = -10*yunit / self.yzoom,
                 s   = 'Chr%d(M)'%sumstats.chrom,
                 fontsize = 14,
                 horizontalalignment = 'center',
-                verticalalignment   = 'center'
+                verticalalignment   = 'center',
+                zorder = 3
                 )
         else:
             n_chrom:int = sumstats.data['chrom'].max()
@@ -216,7 +232,7 @@ class MahtPlot:
                         height  = 3 * yunit,
                         ec      = color_this[:3]/2,
                         color   = color_this,
-                        zorder  = 1
+                        zorder  = 3
                         )
                     )
                 axes.add_patch(
@@ -238,7 +254,8 @@ class MahtPlot:
                     s       = chrom_label,
                     fontsize= 14,
                     horizontalalignment = 'center',
-                    verticalalignment   = 'top'
+                    verticalalignment   = 'top',
+                    zorder = 3
                     )
                 axes.text(
                     x       = x_loc,
@@ -252,7 +269,8 @@ class MahtPlot:
                     alpha   = 0.2,
                     rotation= {False:90,True:0}[vert_horz],
                     horizontalalignment = 'center',
-                    verticalalignment   = 'top'
+                    verticalalignment   = 'top',
+                    zorder = 3
                     )
             # CHROM
             axes.text(
@@ -261,7 +279,8 @@ class MahtPlot:
                 s   = 'CHROM',
                 fontsize = 14,
                 horizontalalignment = 'center',
-                verticalalignment   = 'center'
+                verticalalignment   = 'center',
+                zorder = 4
                 )
         # y axis:
         for g in range(1,100):
@@ -281,21 +300,22 @@ class MahtPlot:
                 verticalalignment   = 'center'
                 )
         # |_
-        axes.plot([-0.003*self.radian,-0.003*self.radian],[0,ymax],color='k')
+        axes.plot([-0.003*self.radian,-0.003*self.radian],[0,ymax],color='k',zorder = 3)
         # _|
-        axes.plot([self.radian*1.003,self.radian*1.003],[0,ymax],color='k')
+        axes.plot([self.radian*1.003,self.radian*1.003],[0,ymax],color='k',zorder = 3)
         # _|
-        axes.plot([self.radian*0.9985,self.radian*1.003],[0,0],color='k')
+        axes.plot([self.radian*0.9985,self.radian*1.003],[0,0],color='k',zorder = 3)
         # --
-        axes.plot([-0.003*self.radian,1.003*self.radian],[ymax,ymax],color='k')
+        axes.plot([-0.003*self.radian,1.003*self.radian],[ymax,ymax],color='k',zorder = 3)
         axes.text(
-            x   = (-0.022-0.01*np.ceil(np.log10(i))) * self.radian,
+            x   = (-0.022-0.01*np.ceil(np.log10(i))) * self.radian / self.xzoom,
             y   = ymax/2,
             s   = '-log10(P)',
             fontsize    = 14,
             rotation    = 90,
             horizontalalignment = 'center',
-            verticalalignment   = 'center'
+            verticalalignment   = 'center',
+            zorder  = 4
             )
         axes.text(
             x   = self.radian/2,
@@ -303,85 +323,188 @@ class MahtPlot:
             s   = self.title+': %d'%sumstats.data['size'].median(),
             fontsize    =16,
             horizontalalignment = 'center',
-            verticalalignment   = 'bottom'
+            verticalalignment   = 'bottom',
+            zorder = 4
             )
-        # plot scatter
-        if self.marker == 'scatter':
-            if sumstats.chrom > 0:
+        # significant threshold line
+        axes.plot(
+            np.linspace(0,self.radian,360),
+            -np.log10(self.threshold)*np.ones(360),
+            linestyle   = '-',
+            c           = 'k',
+            zorder      = 1,
+            lw          = 0.5
+            )
+        axes.plot(
+            np.linspace(0,self.radian,360),
+            -np.log10(self.threshold/self.multitest)*np.ones(360),
+            linestyle   = '--',
+            c           = 'k',
+            zorder      = 1,
+            lw          = 0.5
+            )
+    def plot_classic_scattor_horiz(
+            self,
+            axes:Axes,
+            sumstats:SummaryStats,
+            quick:bool = True
+        ):
+        not_significant = sumstats.significant(
+            level       = 'negative',
+            threshold   = self.threshold,
+            mulitest    = self.multitest,
+            window      = self.window
+            )
+        if quick:
+            if len(not_significant) < 50000:
                 pass
             else:
-                not_significant = sumstats.significant(
-                    level       = 'negative',
-                    threshold   = self.threshold,
-                    mulitest    = self.multitest,
-                    window      = self.window
+                not_significant = not_significant.sample(
+                    n       = 50000,
+                    weights = 1/not_significant['pvalue'],
+                    replace = False
                     )
-                if quick:
-                    not_significant = not_significant.sample(
-                        n       = 50000,
-                        weights = 1/not_significant['pvalue'],
-                        replace = False
-                        )
-                genome_significant = sumstats.significant(
-                    level       = 'genome',
-                    threshold   = self.threshold,
-                    mulitest    = self.multitest,
-                    window      = self.window
-                    )
-                study_significant = sumstats.significant(
-                    level       = 'study',
-                    threshold   = self.threshold,
-                    mulitest    = self.multitest,
-                    window      = self.window
-                    )
-                for chrom in range(1,n_chrom+1):
-                    this_chrom = not_significant.query("chrom==@chrom")
-                    # alpha = np.frompyfunc(
-                    #     lambda lgp:1-lgp/10 if lgp <=5 else 0.5,
-                    #     1,1
-                    # )(
-                    #     this_chrom['log10_pvalue']
-                    # )
-                    axes.scatter(
-                        x       = this_chrom['theta'],
-                        y       = this_chrom['log10_pvalue'],
-                        s       = 20,
-                        alpha   = 1,
-                        color   = self.chrom_color[chrom],
-                        zorder  = 2
-                        )
+        genome_significant = sumstats.significant(
+            level       = 'genome',
+            threshold   = self.threshold,
+            mulitest    = self.multitest,
+            window      = self.window
+            )
+        study_significant = sumstats.significant(
+            level       = 'study',
+            threshold   = self.threshold,
+            mulitest    = self.multitest,
+            window      = self.window
+            )
+        if sumstats.chrom > 0:
+            axes.scatter(
+                x       = not_significant['theta'],
+                y       = not_significant['log10_pvalue'],
+                s       = 20,
+                alpha   = 1,
+                color   = self.colorset.next(),
+                zorder  = 2
+                )
+        else:
+            n_chrom:int = sumstats.data['chrom'].max()
+            for chrom in range(1,n_chrom+1):
+                this_chrom = not_significant.query("chrom==@chrom")
+                # alpha = np.frompyfunc(
+                #     lambda lgp:1-lgp/10 if lgp <=5 else 0.5,
+                #     1,1
+                # )(
+                #     this_chrom['log10_pvalue']
+                # )
                 axes.scatter(
-                    x       = genome_significant['theta'],
-                    y       = genome_significant['log10_pvalue'],
+                    x       = this_chrom['theta'],
+                    y       = this_chrom['log10_pvalue'],
                     s       = 20,
                     alpha   = 1,
-                    color   = [0.3,1,0.3,1],
+                    color   = self.chrom_color[chrom],
                     zorder  = 2
                     )
-                axes.scatter(
-                    x       = study_significant['theta'],
-                    y       = study_significant['log10_pvalue'],
-                    s       = 30,
-                    alpha   = 1,
-                    color   = [1,0.3,0.3,1],
-                    zorder  = 2
-                    )
+        axes.scatter(
+            x       = genome_significant['theta'],
+            y       = genome_significant['log10_pvalue'],
+            s       = 20,
+            alpha   = 1,
+            color   = [0.3,1,0.3,1],
+            zorder  = 2
+            )
+        axes.scatter(
+            x       = study_significant['theta'],
+            y       = study_significant['log10_pvalue'],
+            s       = 30,
+            alpha   = 1,
+            color   = [1,0.3,0.3,1],
+            zorder  = 2
+            )
+    def plot_maht_horiz(
+            self,
+            axes:Axes,
+            sumstats:SummaryStats,
+            quick:bool = True
+        ):
+        # hide axis
+        axes.axis('off')
+        # set yrange:
+        ymax = max(
+            -np.log10(self.threshold),
+            sumstats.data['log10_pvalue'].max()
+            ) * 1.2
+        # theta
+        sumstats.data['theta'] = sumstats.get_theta(chr_sep=self.chr_sep,radian=self.radian)
+        # plot outframe
+        self.plot_classic_axis_horiz(
+            axes        = axes,
+            sumstats    = sumstats,
+            ymax        = ymax
+        )
+        # plot scatter
+        if self.marker == 'scatter':
+            self.plot_classic_scattor_horiz(
+                axes        = axes,
+                sumstats    = sumstats,
+                quick       = quick
+                )
         # gene text
         if self.showgene != 'False':
-            gene_to_show = sumstats.get_gene(
-                level       = self.showgene,
-                threshold   = self.threshold,
-                window      = self.window
+            self.mark_gene_horiz(
+                axes        = axes,
+                sumstats    = sumstats,
+                ymax        = ymax
                 )
-            gene_to_show['theta'] = sumstats.theta(
-                gene_to_show['chrom'],
-                gene_to_show['chr']
-            )
-            # TODO: 显示基因，显示显著性阈值线
-
+    # mark up gene pos
+    def mark_gene_horiz(self,axes:Axes,sumstats:SummaryStats,ymax:float):
+        gene_to_show = sumstats.get_gene(
+            level       = self.showgene,
+            threshold   = self.threshold,
+            window      = self.window
+            ).sort_values('log10_pvalue').dropna(subset='gene')
+        gene_to_show['theta'] = sumstats.theta(
+            gene_to_show['chrom'],
+            gene_to_show['pos']
+        )
+        gene_to_show['gene_y_loc'] = gene_to_show['log10_pvalue']
+        i=0
+        # the real yloc of gene text
+        for key,values in gene_to_show.iterrows():
+            text_yloc = gene_to_show['gene_y_loc'].values
+            x_gene_protect_distance = self.radian * 0.04 * self.geneXdist / self.xzoom
+            text_yloc[i] = gene_to_show[
+                (gene_to_show['theta'] >= values['theta']  - x_gene_protect_distance)
+                &(gene_to_show['theta'] <= values['theta'] + x_gene_protect_distance)
+                ]['gene_y_loc'].max() + ymax * 0.025 / self.yzoom
+        # Update the position of 'y' in the data table 
+        # to ensure that the value of 'max' will change during the next loop, 
+        # achieving the effect of shifting the label up.
+            gene_to_show['gene_y_loc'] = text_yloc
+            i += 1
+            try:
+                # if values.gene in self.:
+                #     cr = 'k'
+                # else:
+                #     cr = 'r'
+                axes.text(
+                    x       = values['theta'],
+                    y       = gene_to_show.loc[key,'gene_y_loc'],
+                    s       = values.gene,
+                    color   = 'r',
+                    fontdict={
+                        'fontstyle': 'italic',
+                        'size'     : 13
+                        },
+                    horizontalalignment ='center',
+                    verticalalignment   ='center'
+                    )
+            except:
+                continue
     # get the rotation angle of chromosome text label
     def rotate_text(self,theta):
         if theta <= np.pi/self.radian :
             return theta
         else:
             return theta - np.pi/self.radian
+    # save fig
+    def save(self,path,**option):
+        self.figure.savefig(fname=path,**option)
