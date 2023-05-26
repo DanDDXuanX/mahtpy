@@ -53,6 +53,8 @@ class ColorSet:
         ----------
             next
                 output a color from colorset.
+            reset
+                reset the color index to the initial status
         """
         # cmap options
         self.cmap_option = {
@@ -97,6 +99,9 @@ class ColorSet:
         if self.this >= self.cmap_option['ncolor']:
             self.this = self.this % self.cmap_option['ncolor']
         return to_return
+    # reset this
+    def reset(self):
+        self.this = 0
     # iterable
     def __iter__(self):
         return self

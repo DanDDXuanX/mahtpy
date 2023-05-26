@@ -35,11 +35,14 @@ class SummaryStats:
             array_input : np.ndarray    = None,
             seperator   : str           = '\t',
             col_specify : dict          = {},
-            ref_genome  : str           = 'hg38'
+            ref_genome  : str           = 'hg38',
+            name        : str           = 'GWAS'
             ) -> None:
+        # name of traits
+        self.name:str = name
         # load col specify
         col_name = {
-                'chrom'     : '#CHROM',
+                'chrom'   : '#CHROM',
                 'pos'     : 'POS',
                 'pvalue'  : 'P',
                 'size'    : 'OBS_CT' 
@@ -218,8 +221,8 @@ class SummaryStats:
                 total radian, or range in x axis to plot mahtplot, default value is 2*pi
         Returns:
         ----------
-            Series
-                theta (postion to plot) value of variants.
+            ufunc
+                universal function to convert (chrom,pos) to theta (postion to plot) value of variants.
         """
         chrom_max:int = self.data['chrom'].max()
         if self.chrom <= 0:
@@ -243,15 +246,7 @@ class SummaryStats:
             self.theta:np.ufunc = np.frompyfunc(
                 lambda chrom,pos:(pos-self.from_bp)/ self.chr_len_total * radian,2,1
             )
-        # return
-        theta:pd.Series = (
-            self.theta
-            (
-                self.data['chrom'],
-                self.data['pos']
-            )
-        )
-        return theta
+        return self.theta
     # convert chrom col as int type
     def reformat_chrom(self,chr_col:pd.Series)->pd.Series:
         """
@@ -465,5 +460,6 @@ class SlicedSumStats(SummaryStats):
             self.chrom      = father.chrom
             self.from_bp    = father.from_bp
             self.to_bp      = father.to_bp
+        self.name = father.name
         self.ref_genome = father.ref_genome
         self.load_info()

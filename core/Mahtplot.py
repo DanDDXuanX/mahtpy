@@ -28,7 +28,6 @@ class MahtPlot:
             layout:str              = 'horizontal',
             marker:str              = 'scatter',
             showgene:str            = 'gene',
-            title:str               = '',
             chr_sep:int             = 20000000,
             radian:float            = 2 * np.pi,
             threshold:float         = 5e-8,
@@ -77,7 +76,6 @@ class MahtPlot:
             else:
                 self.showgene = showgene
         # configs
-        self.title:str          = title
         self.radian:float       = radian
         self.threshold:float    = threshold
         self.chr_sep:int        = chr_sep
@@ -107,6 +105,8 @@ class MahtPlot:
         self.WHR    = self.width/self.height
         self.xzoom  = self.width/16
         self.yzoom  = self.height/8
+        # init the colorset
+        self.colorset.reset()
         # init the rcParams
         if self.WHR > 1:
             plt.rcParams['figure.subplot.left']     = 0.1/self.WHR
@@ -131,41 +131,63 @@ class MahtPlot:
             else:
                 self.ax:list        = self.figure.subplots(self.multitest, 1)
                 self.yzoom:float    = self.yzoom / self.multitest
-        for idx, SS in enumerate(self.sumstats):
-            SS:SummaryStats
-            if idx == 0:
-                # first summary, get from specified range
-                plot_sumstats = SS.slice(
-                    chrom = chrom,
-                    from_bp = from_bp,
-                    to_bp = to_bp,
-                    locus = locus,
-                    threshold = self.threshold,
-                    window = self.window
-                )
-                # recode the return range
-                chrom = plot_sumstats.chrom
-                from_bp = plot_sumstats.from_bp
-                to_bp = plot_sumstats.to_bp
-            else:
-                plot_sumstats = SS.slice(
-                    chrom = chrom,
-                    from_bp = from_bp,
-                    to_bp = to_bp,
-                    locus = -1,
-                    threshold = self.threshold,
-                    window = self.window
-                )
-            if self.style == 'classic':
+        if self.style == 'classic':
+            for idx, SS in enumerate(self.sumstats):
+                SS:SummaryStats
+                if idx == 0:
+                    # first summary, get from specified range
+                    plot_sumstats = SS.slice(
+                        chrom = chrom,
+                        from_bp = from_bp,
+                        to_bp = to_bp,
+                        locus = locus,
+                        threshold = self.threshold,
+                        window = self.window
+                    )
+                    # recode the return range
+                    chrom = plot_sumstats.chrom
+                    from_bp = plot_sumstats.from_bp
+                    to_bp = plot_sumstats.to_bp
+                else:
+                    plot_sumstats = SS.slice(
+                        chrom = chrom,
+                        from_bp = from_bp,
+                        to_bp = to_bp,
+                        locus = -1,
+                        threshold = self.threshold,
+                        window = self.window
+                    )
                 if self.layout == 'horizontal':
                     self.plot_maht_horiz(axes=self.ax[idx],sumstats=plot_sumstats,quick=quick)
                 elif self.layout == 'vertical':
                     self.plot_maht_vert(axes=self.ax[idx],sumstats=plot_sumstats,quick=quick)
-            elif self.style == 'overlap':
-                pass
-            elif self.style == 'symmetric':
-                pass
+        elif self.style == 'overlap':
+            # axes to plot
+            axex = self.ax[0]
+            # get the max ymax
+            ymax = -np.log10(self.threshold)
+            for SS in self.sumstats:
+                SS:SummaryStats
+                # get ymax of all SS
+                ymax_this = SS.data['log10_pvalue'].max() * 1.2
+                if ymax_this > ymax: 
+                    ymax = ymax_this
+            # plot the axis
+            # TODO: 兼容对称和叠加模式
+            self.plot_classic_axis_horiz(axes=axex,sumstats=self.sumstats[0],ymax=ymax)
+            for SS in self.sumstats:
+                SS:SummaryStats
+                # get ymax of all SS
+                self.plot_classic_scattor_horiz(axes=axex,sumstats=SS,quick=1)
+                if ymax_this > ymax: 
+                    ymax = ymax_this
+                
+            # if self.
+            # self.plot_maht_
+        elif self.style == 'symmetric':
+            pass
             # TODO 其他情况
+        return self
     def plot_maht_vert(self):
         pass
     def plot_classic_axis_horiz(
@@ -211,43 +233,67 @@ class MahtPlot:
                 )
         else:
             n_chrom:int = sumstats.data['chrom'].max()
-            self.chrom_color = {}
-            for chrom in range(1,n_chrom+1): #bar
+            # simple line
+            if self.style in ['overlap','symmetric']:
+                axes.plot([x_min,x_max],[0,0],color='k',zorder=3)
+                for chrom in range(1,n_chrom+1):
+                    x_begin:float   = sumstats.theta(chrom, 0)
+                    axes.plot([x_begin,x_begin],[2*yunit,-2*yunit],color='k')
+            # color bar
+            elif self.style == 'classic':
+                self.colorset.reset()
+                for chrom in range(1,n_chrom+1): #bar
+                    x_begin:float   = sumstats.theta(chrom, 0)
+                    x_end:float     = sumstats.theta(chrom, sumstats.chr_len[chrom])
+                    x_width:float   = x_end - x_begin
+                    x_loc:float     = (x_begin + x_end)/2
+                    # color of this chromosome
+                    color_this = self.colorset.next()
+                    # chromosome range
+                    axes.add_patch(
+                        Rectangle(
+                            xy      = (x_begin, -3 * yunit),
+                            width   = x_width,
+                            height  = 3 * yunit,
+                            ec      = color_this[:3]/2,
+                            color   = color_this,
+                            zorder  = 3
+                            )
+                        )
+                    axes.add_patch(
+                        Rectangle(
+                            xy      = (x_begin, 0),
+                            height  = ymax,
+                            width   = x_width,
+                            color   = color_this,
+                            alpha   = 0.1,
+                            zorder  = 1,
+                        )
+                        )
+                    # label of chrom on background
+                    chrom_label = (lambda C:str(C) if C <= sumstats.heterosome['autosome'] else sumstats.heterosome[C])(chrom)
+                    vert_horz = chrom<10 or chrom>sumstats.heterosome['autosome']
+                    axes.text(
+                        x       = x_loc,
+                        y       = 146 * yunit,
+                        s       = chrom_label,
+                        fontdict={
+                            'size'  : {False:16,True:24}[vert_horz],
+                            'weight': 'bold',
+                            'color' : color_this
+                            },
+                        alpha   = 0.2,
+                        rotation= {False:90,True:0}[vert_horz],
+                        horizontalalignment = 'center',
+                        verticalalignment   = 'top',
+                        zorder = 3
+                        )
+            # chromosome label
+            for chrom in range(1,n_chrom+1):
                 x_begin:float   = sumstats.theta(chrom, 0)
                 x_end:float     = sumstats.theta(chrom, sumstats.chr_len[chrom])
-                x_width:float   = x_end - x_begin
                 x_loc:float     = (x_begin + x_end)/2
-                chrom_label_rotate=self.rotate_text(x_loc)
-                # color of this chromosome
-                try:
-                    color_this = self.chrom_color[chrom]
-                except KeyError:
-                    color_this = self.colorset.next()
-                    self.chrom_color[chrom] = color_this
-                # chromosome range
-                axes.add_patch(
-                    Rectangle(
-                        xy      = (x_begin, -3 * yunit),
-                        width   = x_width,
-                        height  = 3 * yunit,
-                        ec      = color_this[:3]/2,
-                        color   = color_this,
-                        zorder  = 3
-                        )
-                    )
-                axes.add_patch(
-                    Rectangle(
-                        xy      = (x_begin, 0),
-                        height  = ymax,
-                        width   = x_width,
-                        color   = color_this,
-                        alpha   = 0.1,
-                        zorder  = 1,
-                    )
-                    )
-                # chromosome label
                 chrom_label = (lambda C:str(C) if C <= sumstats.heterosome['autosome'] else sumstats.heterosome[C])(chrom)
-                vert_horz = chrom<10 or chrom>sumstats.heterosome['autosome']
                 axes.text(
                     x       = x_loc,
                     y       = - 4 * yunit,
@@ -257,25 +303,10 @@ class MahtPlot:
                     verticalalignment   = 'top',
                     zorder = 3
                     )
-                axes.text(
-                    x       = x_loc,
-                    y       = 146 * yunit,
-                    s       = chrom_label,
-                    fontdict={
-                        'size'  : {False:16,True:24}[vert_horz],
-                        'weight': 'bold',
-                        'color' : color_this
-                        },
-                    alpha   = 0.2,
-                    rotation= {False:90,True:0}[vert_horz],
-                    horizontalalignment = 'center',
-                    verticalalignment   = 'top',
-                    zorder = 3
-                    )
             # CHROM
             axes.text(
                 x   = np.pi,
-                y   = -10*yunit,
+                y   = -10*yunit/self.yzoom,
                 s   = 'CHROM',
                 fontsize = 14,
                 horizontalalignment = 'center',
@@ -320,7 +351,7 @@ class MahtPlot:
         axes.text(
             x   = self.radian/2,
             y   = ymax,
-            s   = self.title+': %d'%sumstats.data['size'].median(),
+            s   = sumstats.name+': %d'%sumstats.data['size'].median(),
             fontsize    =16,
             horizontalalignment = 'center',
             verticalalignment   = 'bottom',
@@ -347,7 +378,8 @@ class MahtPlot:
             self,
             axes:Axes,
             sumstats:SummaryStats,
-            quick:bool = True
+            quick:bool = True,
+            color_mode:str = 'multi'
         ):
         not_significant = sumstats.significant(
             level       = 'negative',
@@ -357,7 +389,7 @@ class MahtPlot:
             )
         if quick:
             if len(not_significant) < 50000:
-                pass
+                not_significant = not_significant.copy()
             else:
                 not_significant = not_significant.sample(
                     n       = 50000,
@@ -376,6 +408,10 @@ class MahtPlot:
             mulitest    = self.multitest,
             window      = self.window
             )
+        # get theta
+        not_significant['theta']    = sumstats.theta(not_significant['chrom']   ,not_significant['pos']   )
+        genome_significant['theta'] = sumstats.theta(genome_significant['chrom'],genome_significant['pos'])
+        study_significant['theta']  = sumstats.theta(study_significant['chrom'] ,study_significant['pos'] )
         if sumstats.chrom > 0:
             axes.scatter(
                 x       = not_significant['theta'],
@@ -387,6 +423,7 @@ class MahtPlot:
                 )
         else:
             n_chrom:int = sumstats.data['chrom'].max()
+            self.colorset.reset()
             for chrom in range(1,n_chrom+1):
                 this_chrom = not_significant.query("chrom==@chrom")
                 # alpha = np.frompyfunc(
@@ -400,7 +437,7 @@ class MahtPlot:
                     y       = this_chrom['log10_pvalue'],
                     s       = 20,
                     alpha   = 1,
-                    color   = self.chrom_color[chrom],
+                    color   = self.colorset.next(),
                     zorder  = 2
                     )
         axes.scatter(
@@ -433,7 +470,7 @@ class MahtPlot:
             sumstats.data['log10_pvalue'].max()
             ) * 1.2
         # theta
-        sumstats.data['theta'] = sumstats.get_theta(chr_sep=self.chr_sep,radian=self.radian)
+        sumstats.get_theta(chr_sep=self.chr_sep,radian=self.radian)
         # plot outframe
         self.plot_classic_axis_horiz(
             axes        = axes,
