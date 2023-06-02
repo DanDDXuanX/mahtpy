@@ -4,12 +4,12 @@
 
 # main
 
-from core import SummaryStats, MahtPlot, ColorSet
+from mahtpy import SummaryStats, MahtPlot, ColorSet
 import argparse
 import numpy as np
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Draw Manhattan plot py matplotlib!")
+    parser = argparse.ArgumentParser(description="Draw fancy Manhattan plot with matplotlib!")
     # ----required----
     parser.add_argument("-i", "--input",nargs='+', help='The input summary statistics.',type=str,required=True)
     parser.add_argument("-o", "--output", help='The output plot path, format is .png',type=str,required=True)

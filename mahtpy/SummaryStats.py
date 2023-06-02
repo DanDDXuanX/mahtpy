@@ -6,6 +6,7 @@
 import pandas as pd
 import numpy as np
 from pathlib import Path
+import os
 
 class SumstatsError(Exception):
     def __init__(self, *args: object) -> None:
@@ -13,8 +14,9 @@ class SumstatsError(Exception):
 
 class SummaryStats:
     # class variables
+    dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     chr_len_dict:dict = {
-        'hg38' : Path('./assets/CHR.len')
+        'hg38' : Path(dir_path + '/assets/CHR.len')
     }
     heterosome_dict:dict = {
         'hg38' : {
@@ -25,7 +27,7 @@ class SummaryStats:
         }
     }
     gene_pos_dict:dict = {
-        'hg38' : Path('./assets/KnownCanonicalGene.Drop.hg38.txt')
+        'hg38' : Path(dir_path + '/assets/KnownCanonicalGene.Drop.hg38.txt')
     }
     # init with a file, pd.DF or a np.2darray
     def __init__(
@@ -329,6 +331,7 @@ class SummaryStats:
             .sort_values(by=['chrom','pos'])
             .copy()
         )
+        significants['locusID'] = np.nan
         # if no signigicant variants in summary
         if len(significants) == 0:
             # return emtpy frame

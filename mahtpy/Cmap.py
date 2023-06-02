@@ -101,7 +101,7 @@ class ColorSet:
         return to_return
     # reset this
     def reset(self):
-        self.this = 0
+        self.this = self.cmap_option['init']
     # iterable
     def __iter__(self):
         return self
