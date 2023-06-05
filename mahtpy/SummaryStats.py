@@ -379,6 +379,7 @@ class SummaryStats:
                 if level is 'gene', only return the top SNPs of each mapped gene,\n
                 if level is 'loci', adjacent significant SNPs are merged into a loci, only return the top snps of each loci.\n
                 if level is 'loci-gene', return the top mapped gene in each loci; if no gene is mapped in a loci, this loci will be dropped. \n
+                if level is 'loci-closest', if a locus did not mapped any gene, return the closest gene upstream or downstream. \n
                 default is 'snp'.
             window      : int
                 significant SNPs which distance less than window are merged into a loci, window default is 500kb
@@ -402,23 +403,40 @@ class SummaryStats:
                 return this_chrom[Bg_b&Ed_b]['hg38.kgXref.geneSymbol'].values[0]
             except:
                 return np.nan
+        uf_mapped = np.frompyfunc(mapped, 2, 1)
+        def closed(chrom,pos):
+            nonlocal mapped
+            mapped_gene = mapped(chrom,pos)
+            if mapped_gene is np.nan:
+                Chr_b=self.known_gene['#hg38.knownCanonical.chrom']==chrom
+                this_chrom = self.known_gene[Chr_b]
+                S_distance = (this_chrom['hg38.knownCanonical.chromStart'] - pos).abs()
+                E_distance = (this_chrom['hg38.knownCanonical.chromEnd'] - pos).abs()
+                if S_distance.min() < E_distance.min():
+                    K_distance:pd.Series = S_distance
+                    tplt = "{}>"
+                else:
+                    K_distance:pd.Series = E_distance
+                    tplt = "<{}"
+                closest = K_distance.idxmin()
+                return tplt.format(this_chrom.loc[closest,'hg38.kgXref.geneSymbol'])
+            else:
+                return mapped_gene
+        uf_closed = np.frompyfunc(closed, 2, 1)
         # get all significant snps
         sig = self.significant(threshold=threshold,window=window).copy()
         if level == 'loci':
             sig = sig.loc[sig.groupby('locusID')['log10_pvalue'].idxmax()].copy()
-        # get all gene annotats
-        sig['gene'] = (
-            np.frompyfunc(mapped, 2, 1)(
-                sig['chrom'], sig['pos']
-            )
-        )
         # case : level
         if level == 'snp':
+            # get all gene annotats
+            sig['gene'] = uf_mapped(sig['chrom'], sig['pos'])
             return sig
         elif level == 'gene':
+            sig['gene'] = uf_mapped(sig['chrom'], sig['pos'])
             return (
                 sig
-                .dropna(subset='gene')
+                .dropna(subset=['gene'])
                 .loc[
                     sig
                     .groupby('gene')['log10_pvalue']
@@ -426,13 +444,26 @@ class SummaryStats:
                 ] 
             )
         elif level == 'loci':
+            sig['gene'] = uf_mapped(sig['chrom'], sig['pos'])
             return sig
         elif level == 'loci-gene':
+            sig['gene'] = uf_mapped(sig['chrom'], sig['pos'])
             return (
                 sig
                 .loc[
                     sig
-                    .dropna(subset='gene')
+                    .dropna(subset=['gene'])
+                    .groupby('locusID')['log10_pvalue']
+                    .idxmax()
+                    ]
+                .copy()
+                )
+        elif level == 'loci-closest':
+            sig['gene'] = uf_closed(sig['chrom'], sig['pos'])
+            return (
+                sig
+                .loc[
+                    sig
                     .groupby('locusID')['log10_pvalue']
                     .idxmax()
                     ]

@@ -70,7 +70,7 @@ class MahtPlot:
         else:
             raise MahtplotError("Invalid mahtplot marker '{}'".format(layout))
         # show gene method:
-        if showgene in [False,'gene','loci','loci-gene']:
+        if showgene in [False,'gene','loci','loci-gene','loci-closest']:
             if showgene == False:
                 self.showgene = 'False'
             else:
@@ -491,13 +491,21 @@ class MahtPlot:
                 sumstats    = sumstats,
                 ymax        = ymax
                 )
+            sumstats
+            if sumstats.chrom > 0:
+                self.draw_gene_axis(
+                    axes        = axes,
+                    sumstats    = sumstats,
+                )
+            else:
+                pass
     # mark up gene pos
     def mark_gene_horiz(self,axes:Axes,sumstats:SummaryStats,ymax:float):
         gene_to_show = sumstats.get_gene(
             level       = self.showgene,
             threshold   = self.threshold,
             window      = self.window
-            ).sort_values('log10_pvalue').dropna(subset='gene')
+            ).sort_values('log10_pvalue').dropna(subset=['gene'])
         gene_to_show['theta'] = sumstats.theta(
             gene_to_show['chrom'],
             gene_to_show['pos']
@@ -542,6 +550,45 @@ class MahtPlot:
             return theta
         else:
             return theta - np.pi/self.radian
+    # draw gene axis
+    def draw_gene_axis(self,axes:Axes,sumstats):
+        ax = axes.inset_axes([0,0.9,1,0.1])
+        ax.axis('off')
+        xmin,xmax = axes.get_xlim()
+        ax.set_xlim(xmin,xmax)
+        ax.set_ylim(-1,1)
+        t_pos = 0.4
+        color = 0
+        # from to
+        chrom = sumstats.chrom
+        from_bp = sumstats.from_bp
+        to_bp = sumstats.to_bp
+        # line
+        theta = sumstats.theta
+        ax.plot([theta(...,from_bp),theta(...,to_bp)],[0,0],'-',color='k',lw=2,zorder=1)
+        # 
+        gene_pos:pd.DataFrame = self.sumstats[0].known_gene
+        plotgene = gene_pos[(gene_pos['#hg38.knownCanonical.chrom'] == chrom) & ((gene_pos['hg38.knownCanonical.chromStart'] < to_bp) & (gene_pos['hg38.knownCanonical.chromStart']>from_bp) | (gene_pos['hg38.knownCanonical.chromEnd'] < to_bp) & (gene_pos['hg38.knownCanonical.chromEnd']>from_bp))].sort_values('hg38.knownCanonical.chromStart')
+        self.colorset.reset()
+        global_end = 0
+        for key,value in plotgene.iterrows():
+            if 'orf' in value['hg38.kgXref.geneSymbol'] or '-' in value['hg38.kgXref.geneSymbol']:
+                continue
+            L = theta(...,max(from_bp,value['hg38.knownCanonical.chromStart']))
+            W = theta(...,min(to_bp,value['hg38.knownCanonical.chromEnd']))-L
+            H = (lambda x: 0.5 if x >= global_end else 0.75)(value['hg38.knownCanonical.chromStart'])
+            this_color = self.colorset.next()
+            bar = ax.barh(y=0,width=W,height=H,left=L,color=this_color)
+            # ax.text(x=L,y=t_pos,s=value['hg38.kgXref.geneSymbol'],verticalalignment='center',fontdict={'size':8,'style':'italic','color':'k'})
+            # print(t_pos)
+            # t_pos += 0.4
+            # if t_pos >= 1.1:
+            #     t_pos = -t_pos+0.4
+            # if abs(t_pos) < 1e-4:
+            #     t_pos += 0.4
+            if value['hg38.knownCanonical.chromEnd'] > global_end:
+                global_end = value['hg38.knownCanonical.chromEnd']
+            Last_L = L
     # save fig
     def save(self,path,**option):
         self.figure.savefig(fname=path,**option)
