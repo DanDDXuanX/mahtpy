@@ -397,6 +397,7 @@ class SummaryStats:
             #     chrom = 'chr'+str(chrom)
             Chr_b=self.known_gene['#hg38.knownCanonical.chrom']==chrom
             this_chrom = self.known_gene[Chr_b]
+            this_chrom = this_chrom[this_chrom['hg38.kgXref.geneSymbol']!="Y_RNA"]
             Bg_b = this_chrom['hg38.knownCanonical.chromStart']<=pos
             Ed_b = this_chrom['hg38.knownCanonical.chromEnd']>=pos
             try:
@@ -410,6 +411,7 @@ class SummaryStats:
             if mapped_gene is np.nan:
                 Chr_b=self.known_gene['#hg38.knownCanonical.chrom']==chrom
                 this_chrom = self.known_gene[Chr_b]
+                this_chrom = this_chrom[this_chrom['hg38.kgXref.geneSymbol']!="Y_RNA"]
                 S_distance = (this_chrom['hg38.knownCanonical.chromStart'] - pos).abs()
                 E_distance = (this_chrom['hg38.knownCanonical.chromEnd'] - pos).abs()
                 if S_distance.min() < E_distance.min():

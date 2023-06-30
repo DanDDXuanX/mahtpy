@@ -500,6 +500,26 @@ class MahtPlot:
             else:
                 pass
     # mark up gene pos
+    def gene_mark_ypos_horiz(self,gene_to_show:pd.DataFrame,ymax:float):
+        # the real yloc of gene text
+        # gene_to_show = gene_to_show.sort_values('log10_pvalue')
+        x_gene_protect_distance = self.radian * 0.01 * self.geneXdist / self.xzoom
+        y_gene_protect_distance = ymax * 0.025 / self.yzoom
+        used_pos = pd.DataFrame(index=gene_to_show.index,columns=['theta','gene_y_loc','width'])
+        for key,values in gene_to_show.iterrows():
+            # overlap bool series
+            this_width = len(values['gene']) * x_gene_protect_distance
+            x_overlap = (used_pos['theta'] - values['theta']).abs() <= ((used_pos['width']+this_width)/2)
+            y_overlap = (used_pos['gene_y_loc'] - values['gene_y_loc']).abs() <= y_gene_protect_distance
+            overlap_used = used_pos[x_overlap & y_overlap]
+            # if no duplicate, use original pos
+            used_pos.loc[key,'theta'] = values['theta']
+            used_pos.loc[key,'width'] = this_width
+            if len(overlap_used) == 0:
+                used_pos.loc[key,'gene_y_loc'] = values['gene_y_loc'] + y_gene_protect_distance
+            else:
+                used_pos.loc[key,'gene_y_loc'] = overlap_used['gene_y_loc'].max() + y_gene_protect_distance
+        return used_pos
     def mark_gene_horiz(self,axes:Axes,sumstats:SummaryStats,ymax:float):
         gene_to_show = sumstats.get_gene(
             level       = self.showgene,
@@ -511,29 +531,24 @@ class MahtPlot:
             gene_to_show['pos']
         )
         gene_to_show['gene_y_loc'] = gene_to_show['log10_pvalue']
-        i=0
+        gene_to_show['gene_y_loc'] = self.gene_mark_ypos_horiz(gene_to_show,ymax)['gene_y_loc']
+        gene_to_show['width'] = self.gene_mark_ypos_horiz(gene_to_show,ymax)['width']
         # the real yloc of gene text
         for key,values in gene_to_show.iterrows():
-            text_yloc = gene_to_show['gene_y_loc'].values
-            x_gene_protect_distance = self.radian * 0.04 * self.geneXdist / self.xzoom
-            text_yloc[i] = gene_to_show[
-                (gene_to_show['theta'] >= values['theta']  - x_gene_protect_distance)
-                &(gene_to_show['theta'] <= values['theta'] + x_gene_protect_distance)
-                ]['gene_y_loc'].max() + ymax * 0.025 / self.yzoom
-        # Update the position of 'y' in the data table 
-        # to ensure that the value of 'max' will change during the next loop, 
-        # achieving the effect of shifting the label up.
-            gene_to_show['gene_y_loc'] = text_yloc
-            i += 1
             try:
                 # if values.gene in self.:
                 #     cr = 'k'
                 # else:
                 #     cr = 'r'
+                # axes.plot(
+                #     [values['theta']-values['width']/2, values['theta']+values['width']/2],
+                #     [values['gene_y_loc'],values['gene_y_loc']],
+                #     color='k'
+                # )
                 axes.text(
                     x       = values['theta'],
-                    y       = gene_to_show.loc[key,'gene_y_loc'],
-                    s       = values.gene,
+                    y       = values['gene_y_loc'],
+                    s       = values['gene'],
                     color   = 'r',
                     fontdict={
                         'fontstyle': 'italic',
