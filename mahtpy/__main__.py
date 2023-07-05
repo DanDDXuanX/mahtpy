@@ -81,7 +81,8 @@ if __name__ == '__main__':
         colorset    = colormap,
         showgene    = showgene,
         geneXdist   = args.xProtDist,
-        chr_sep     = args.gap
+        chr_sep     = args.gap,
+        threshold   = args.threshold
         )
     figheight = len(list_of_ss) * 6 + 2
     mhtplot.draw(
