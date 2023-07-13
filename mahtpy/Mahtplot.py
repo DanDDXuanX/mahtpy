@@ -32,12 +32,13 @@ class MahtPlot:
             radian:float            = 2 * np.pi,
             threshold:float         = 5e-8,
             window:int              = 500000,
-            geneXdist:float         = 1.0
+            geneXdist:float         = 1.0,
+            force_multi:int         = 0,
             ) -> None:
         # summary
         if type(sumstats) is SummaryStats:
             self.sumstats:list = [sumstats]
-            self.multitest:int = 1
+            self.testtime:int = 1
         elif type(sumstats) in [list,tuple,np.ndarray]:
             # check if all element of list is SummaryStats
             last = sumstats[0]
@@ -51,7 +52,7 @@ class MahtPlot:
                         )
                 last = ss
             self.sumstats:list = list(sumstats)
-            self.multitest:int = len(sumstats)
+            self.testtime:int = len(sumstats)
         else:
             raise MahtplotError('Invalid sumstats argument.')
         # colorset
@@ -81,13 +82,18 @@ class MahtPlot:
         self.chr_sep:int        = chr_sep
         self.window:int         = window
         self.geneXdist:int      = geneXdist
+        # multi_thres
+        if force_multi:
+            self.multitest = force_multi
+        else:
+            self.multitest = self.testtime
         # MahtPlot class is not suitable to show overmany summary
-        if self.multitest >= 5:
+        if self.testtime >= 5:
             warnings.warn('''
             MahtPlot class is not suitable to display more than 4 summary, 
             Use CircosMPlot instead.
             ''')
-        elif self.style == 'symmetric' and self.multitest > 2:
+        elif self.style == 'symmetric' and self.testtime > 2:
             raise MahtplotError("Mahtplot layout 'symmetric' can only display 2 or less SumStats")
 
     def draw(
@@ -121,16 +127,16 @@ class MahtPlot:
         # figure and axes
         self.figure:Figure = plt.figure(figsize=figsize)
         # if only 1 SumStats, or use circular layout
-        if self.multitest == 1 or self.layout in ['cavern','firework'] or self.style in ['symmetric','overlap']:
+        if self.testtime == 1 or self.layout in ['cavern','firework'] or self.style in ['symmetric','overlap']:
             self.ax:list = [self.figure.subplots(1,1)]
         # if mulit SumStats
         else:
             if self.layout == 'vertical':
-                self.ax:list        = self.figure.subplots(1, self.multitest)
-                self.xzoom:float    = self.xzoom / self.multitest 
+                self.ax:list        = self.figure.subplots(1, self.testtime)
+                self.xzoom:float    = self.xzoom / self.testtime 
             else:
-                self.ax:list        = self.figure.subplots(self.multitest, 1)
-                self.yzoom:float    = self.yzoom / self.multitest
+                self.ax:list        = self.figure.subplots(self.testtime, 1)
+                self.yzoom:float    = self.yzoom / self.testtime
         if self.style == 'classic':
             for idx, SS in enumerate(self.sumstats):
                 SS:SummaryStats

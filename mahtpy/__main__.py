@@ -35,7 +35,8 @@ if __name__ == '__main__':
     parser.add_argument("--poscol", help="Specify a columns of input file as base position of GWAS summary.",default='POS',type=str)
     parser.add_argument("--pvalcol", help="Specify a columns of input file as p-values of GWAS summary.",default='P',type=str)
     # ----flag----
-    parser.add_argument("--hidegene",help="Do not show gene names.",action='store_true')
+    parser.add_argument("--showgene",help="Method to annotate gene names.",type=str,default='loci-gene')
+    parser.add_argument("--forcemulti",help="Set the multi test threshold, instead of by default.",type=int,default=0)
     # parse args
     args = parser.parse_args()
     # load cmap:
@@ -71,10 +72,10 @@ if __name__ == '__main__':
             )
         )
     # plot Manhattan plot
-    if args.hidegene:
-        showgene = False
+    if args.showgene in ['gene','loci','loci-gene','loci-closest']:
+        showgene = args.showgene
     else:
-        showgene = 'loci-gene'
+        showgene = False
     mhtplot = MahtPlot(
         sumstats    = list_of_ss,
         window      = 500000,
@@ -82,7 +83,8 @@ if __name__ == '__main__':
         showgene    = showgene,
         geneXdist   = args.xProtDist,
         chr_sep     = args.gap,
-        threshold   = args.threshold
+        threshold   = args.threshold,
+        force_multi = args.forcemulti
         )
     figheight = len(list_of_ss) * 6 + 2
     mhtplot.draw(
