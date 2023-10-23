@@ -103,7 +103,8 @@ class MahtPlot:
             from_bp:int             = -1,
             to_bp:int               = -1,
             locus:int               = -1,
-            quick:bool              = True
+            quick:bool              = True,
+            known:list              = [],
         ):
         # figsize
         self.width  = figsize[0]
@@ -111,6 +112,7 @@ class MahtPlot:
         self.WHR    = self.width/self.height
         self.xzoom  = self.width/16
         self.yzoom  = self.height/8
+        self.known_gene  = known
         # init the colorset
         self.colorset.reset()
         # init the rcParams
@@ -542,10 +544,13 @@ class MahtPlot:
         # the real yloc of gene text
         for key,values in gene_to_show.iterrows():
             try:
-                # if values.gene in self.:
-                #     cr = 'k'
-                # else:
-                #     cr = 'r'
+                if self.known_gene:
+                    if values.gene.replace('<','').replace('>','') in self.known_gene:
+                        cr = 'k'
+                    else:
+                        cr = 'r'
+                else:
+                    cr = 'r'
                 # axes.plot(
                 #     [values['theta']-values['width']/2, values['theta']+values['width']/2],
                 #     [values['gene_y_loc'],values['gene_y_loc']],
@@ -555,7 +560,7 @@ class MahtPlot:
                     x       = values['theta'],
                     y       = values['gene_y_loc'],
                     s       = values['gene'],
-                    color   = 'r',
+                    color   = cr,
                     fontdict={
                         'fontstyle': 'italic',
                         'size'     : 13

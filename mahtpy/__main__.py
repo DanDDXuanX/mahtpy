@@ -19,6 +19,7 @@ if __name__ == '__main__':
     parser.add_argument("-s", "--name", help="Specify the name of traits on title.", nargs='+', default='', type=str)
     parser.add_argument("--gap", help="The distance between chromosomes in plot, unit is bp.", default=20000000, type=np.int64)
     parser.add_argument("--xProtDist", help="X-axis protection distance multiplier", default=1.0, type=np.float64)
+    parser.add_argument("-k", "--known", help="A list of known gene name.",default=None,type=str)
     # ----cmap----
     parser.add_argument("-n", "--ncolors", help="The number of colors in cmap.", default=2, type=np.int64)
     parser.add_argument("-p", "--posinit", help="The color pos of chr1 in plot.", default=0, type=np.int64)
@@ -71,6 +72,14 @@ if __name__ == '__main__':
                 name        = trait_name
             )
         )
+    # list of known
+    if args.known:
+        try:
+            known_list = open(args.known,'r').read().split('\n')
+        except:
+            known_list = []
+    else:
+        known_list = []
     # plot Manhattan plot
     if args.showgene in ['gene','loci','loci-gene','loci-closest']:
         showgene = args.showgene
@@ -92,7 +101,8 @@ if __name__ == '__main__':
         locus=args.locus,
         chrom=args.chr,
         from_bp=args.from_bp,
-        to_bp=args.to_bp
+        to_bp=args.to_bp,
+        known=known_list
         )
     # save fig
     mhtplot.save(args.output)
