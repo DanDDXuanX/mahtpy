@@ -377,6 +377,7 @@ class SummaryStats:
                 possible value in ['snp','gene','loci','loci-gene'],\n
                 if level is 'snp', return all significant SNPs with mapped genes annotated,\n
                 if level is 'gene', only return the top SNPs of each mapped gene,\n
+                if level is 'gene-closest', return all significant SNPs with mapped gene or closest gene upstream or downstream. \n
                 if level is 'loci', adjacent significant SNPs are merged into a loci, only return the top snps of each loci.\n
                 if level is 'loci-gene', return the top mapped gene in each loci; if no gene is mapped in a loci, this loci will be dropped. \n
                 if level is 'loci-closest', if a locus did not mapped any gene, return the closest gene upstream or downstream. \n
@@ -471,6 +472,9 @@ class SummaryStats:
                     ]
                 .copy()
                 )
+        elif level == 'gene-closest':
+            sig['gene'] = uf_closed(sig['chrom'], sig['pos'])
+            return sig
         else:
             raise SumstatsError("Invalid gene annotate level: '{}'".format(level))
 
