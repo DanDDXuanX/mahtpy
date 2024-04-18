@@ -499,7 +499,6 @@ class MahtPlot:
                 sumstats    = sumstats,
                 ymax        = ymax
                 )
-            sumstats
             if sumstats.chrom > 0:
                 self.draw_gene_axis(
                     axes        = axes,
@@ -604,16 +603,16 @@ class MahtPlot:
             W = theta(...,min(to_bp,value['hg38.knownCanonical.chromEnd']))-L
             H = (lambda x: 0.5 if x >= global_end else 0.75)(value['hg38.knownCanonical.chromStart'])
             this_color = self.colorset.next()
-            bar = ax.barh(y=0,width=W,height=H,left=L,color=this_color)
-            # ax.text(x=L,y=t_pos,s=value['hg38.kgXref.geneSymbol'],verticalalignment='center',fontdict={'size':8,'style':'italic','color':'k'})
+            bar = ax.barh(y=0,width=W,height=H,left=L,color=this_color,zorder=2)
+            ax.text(x=L+W/2,y=t_pos,s=value['hg38.kgXref.geneSymbol'],verticalalignment='center',horizontalalignment='center',fontdict={'size':8,'style':'italic','color':'k'})
             # print(t_pos)
             # t_pos += 0.4
             # if t_pos >= 1.1:
             #     t_pos = -t_pos+0.4
             # if abs(t_pos) < 1e-4:
             #     t_pos += 0.4
-            if value['hg38.knownCanonical.chromEnd'] > global_end:
-                global_end = value['hg38.knownCanonical.chromEnd']
+            # if value['hg38.knownCanonical.chromEnd'] > global_end:
+            #     global_end = value['hg38.knownCanonical.chromEnd']
             Last_L = L
     # save fig
     def save(self,path,**option):

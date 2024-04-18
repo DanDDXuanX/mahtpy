@@ -105,4 +105,4 @@ if __name__ == '__main__':
         known=known_list
         )
     # save fig
-    mhtplot.save(args.output)
+    mhtplot.save(args.output,dpi=300)
