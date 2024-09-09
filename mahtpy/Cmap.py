@@ -4,7 +4,7 @@
 
 # available color map to plot.
 
-from matplotlib.cm import datad,get_cmap
+from matplotlib.cm import datad
 from matplotlib.colors import ColorConverter
 import numpy as np
 
@@ -64,6 +64,7 @@ class ColorSet:
             }
         # colorset and colormap
         if colormap in datad.keys():
+            return
             for key in cmap_options:
                 if key in self.cmap_option.keys():
                     self.cmap_option[key] = cmap_options[key]

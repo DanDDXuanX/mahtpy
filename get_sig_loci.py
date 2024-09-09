@@ -8,4 +8,4 @@ ofile = sys.argv[2]
 
 ss = SummaryStats(file_input = add)
 
-ss.get_gene(level='loci-closest').to_csv(ofile,sep='\t',index=False)
+ss.get_gene(level='snp').to_csv(ofile,sep='\t',index=False)
