@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 from matplotlib.patches import Rectangle
+from scipy import stats
 
 from .SummaryStats import SummaryStats,SlicedSumStats
 from .Cmap import ColorSet
@@ -124,8 +125,8 @@ class MahtPlot:
         else:
             plt.rcParams['figure.subplot.left']     = 0.1
             plt.rcParams['figure.subplot.right']    = 0.9
-            plt.rcParams['figure.subplot.top']      = 1 - 0.1 * self.WHR
-            plt.rcParams['figure.subplot.bottom']   = 0.1 * self.WHR
+            plt.rcParams['figure.subplot.top']      = 1 - 0.03 * self.WHR
+            plt.rcParams['figure.subplot.bottom']   = 0.03 * self.WHR
         # figure and axes
         self.figure:Figure = plt.figure(figsize=figsize)
         # if only 1 SumStats, or use circular layout
@@ -328,10 +329,11 @@ class MahtPlot:
             else:
                 pass
         # =|_
+        gap = -1/50 * self.radian
         for i in range(0,int(ymax+1),g):
-            axes.plot([-self.radian/120,-self.radian/300],[i,i],color='k')
+            axes.plot([-self.radian/120+gap,-self.radian/300+gap],[i,i],color='k')
             axes.text(
-                x   = -self.radian/100,
+                x   = -self.radian/100+gap,
                 y   = i,
                 s   = i,
                 fontsize    = 14,
@@ -339,7 +341,7 @@ class MahtPlot:
                 verticalalignment   = 'center'
                 )
         # |_
-        axes.plot([-0.003*self.radian,-0.003*self.radian],[0,ymax],color='k',zorder = 3)
+        axes.plot([-0.003*self.radian+gap,-0.003*self.radian+gap],[0,ymax],color='k',zorder = 3)
         # # _|
         # axes.plot([self.radian*1.003,self.radian*1.003],[0,ymax],color='k',zorder = 3)
         # # _|
@@ -347,7 +349,7 @@ class MahtPlot:
         # # --
         # axes.plot([-0.003*self.radian,1.003*self.radian],[ymax,ymax],color='k',zorder = 3)
         axes.text(
-            x   = (-0.022-0.01*np.ceil(np.log10(i))) * self.radian / self.xzoom,
+            x   = (-0.022-0.01*np.ceil(np.log10(i))) * self.radian / self.xzoom + gap,
             y   = ymax/2,
             s   = '-log10(P)',
             fontsize    = 14,
@@ -616,5 +618,56 @@ class MahtPlot:
                 global_end = value['hg38.knownCanonical.chromEnd']
             Last_L = L
     # save fig
+    def save(self,path,**option):
+        self.figure.savefig(fname=path,**option)
+
+class QQPlot:
+    def __init__(
+        self,
+        sumstats:SummaryStats,
+        color:str='#333333',
+    ):
+        self.sumstats  = sumstats
+        self.color = color
+    def draw(self):
+        P_all = self.sumstats.data['pvalue']
+        n = len(P_all) + 1
+        expect = np.arange(1, n, dtype=float)
+        qbeta = stats.beta.ppf
+        c975 = -1 * np.log10(qbeta(0.975, expect, n - expect + 1))
+        c025 = -1 * np.log10(qbeta(0.025, expect, n - expect + 1))
+        
+        expect = -1 * np.log10(expect / len(P_all))
+        obs = -np.log10(P_all).sort_values(ascending=True)
+
+        plotdata = pd.DataFrame({'exp':expect,'obs':obs})
+        plotdata['weight'] = plotdata['obs'].map(lambda x:1 if x > 7.3 else x/7.3)
+        plotdata = plotdata.sample(n=50000,weights=plotdata['weight'])
+        # plot
+        self.figure = plt.figure(figsize = (4,4))
+        self.figure.set_facecolor('w')
+        ax = plt.subplot(111)
+        ax.grid(linestyle=(0, (1, 3)),color='black')
+        #ax.scatter(x = expect,y = obs,zorder = 2,alpha=1,color=plt.cm.OrRd(expect/np.max(expect)),s=10) #x轴是期望值，y轴是观测值
+        ax.scatter(x = plotdata['exp'],y = plotdata['obs'],zorder = 2,alpha=1,color=self.color,s=4) #x轴是期望值，y轴是观测值
+        ax.plot(np.linspace(0,max(expect),3),np.linspace(0,max(expect),3),linestyle='-',color = 'r',zorder=1)
+        ax.fill_between(expect, c025, c975, facecolor='gray',
+                        zorder=0)
+        ax.set_xlabel('Theoretical quantiles',size=12)
+        ax.set_ylabel('Data quantiles',size=12)
+        # lambda gc
+        ymin,ymax = ax.get_ylim()
+        # 显示
+        ax.text(x=0,y=ymax*0.9,s='λgc = %.4f'%self.lambda_gc(P_all.dropna()),size=12)
+        return self
+    def lambda_gc(self,P_all):
+        # 等价的函数
+        qchisq = stats.chi2.ppf
+        # 计算卡方
+        chisq = qchisq((1-P_all),1)
+        # 计算lambdagc
+        lambda_gc = np.median(chisq) / qchisq(0.5,1)
+        return lambda_gc
+        # save fig
     def save(self,path,**option):
         self.figure.savefig(fname=path,**option)

@@ -1,3 +1,3 @@
 from .Cmap import ColorSet
-from .Mahtplot import MahtPlot
+from .Mahtplot import MahtPlot,QQPlot
 from .SummaryStats import SummaryStats

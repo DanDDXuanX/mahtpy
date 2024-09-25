@@ -95,7 +95,7 @@ if __name__ == '__main__':
         threshold   = args.threshold,
         force_multi = args.forcemulti
         )
-    figheight = len(list_of_ss) * 6 + 2
+    figheight = len(list_of_ss) * 2 + 6
     mhtplot.draw(
         figsize=(16,figheight),
         locus=args.locus,
@@ -105,4 +105,4 @@ if __name__ == '__main__':
         known=known_list
         )
     # save fig
-    mhtplot.save(args.output)
+    mhtplot.save(args.output,dpi=300)
