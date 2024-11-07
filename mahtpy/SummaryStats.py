@@ -15,6 +15,7 @@ class SumstatsError(Exception):
 class SummaryStats:
     # class variables
     dir_path = os.path.dirname(os.path.realpath(__file__))
+    # TODO：在这里补充hg37的支持
     chr_len_dict:dict = {
         'hg38' : Path(dir_path + '/assets/CHR.len')
     }

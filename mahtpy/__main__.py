@@ -4,11 +4,15 @@
 
 # main
 
+import warnings
+warnings.filterwarnings('ignore')
 from mahtpy import SummaryStats, MahtPlot, ColorSet
 import argparse
 import numpy as np
 
+
 if __name__ == '__main__':
+
     parser = argparse.ArgumentParser(description="Draw fancy Manhattan plot with matplotlib!")
     # ----required----
     parser.add_argument("-i", "--input",nargs='+', help='The input summary statistics.',type=str,required=True)

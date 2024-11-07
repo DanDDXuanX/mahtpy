@@ -4,7 +4,7 @@
 
 # available color map to plot.
 
-from matplotlib.cm import datad,get_cmap
+from matplotlib.cm import datad,_colormaps
 from matplotlib.colors import ColorConverter
 import numpy as np
 
@@ -69,7 +69,7 @@ class ColorSet:
                     self.cmap_option[key] = cmap_options[key]
                 else:
                     pass
-            cm = get_cmap(colormap)
+            cm = _colormaps[colormap]
             self.colorset:np.ndarray = cm(np.linspace(0,1,self.cmap_option['ncolor']))
             self.this = self.cmap_option['init']
         elif len(colorset) != 0:
