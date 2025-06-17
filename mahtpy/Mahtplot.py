@@ -129,6 +129,8 @@ class MahtPlot:
             plt.rcParams['figure.subplot.right']    = 0.9
             plt.rcParams['figure.subplot.top']      = 1 - 0.03 * self.WHR
             plt.rcParams['figure.subplot.bottom']   = 0.03 * self.WHR
+        # font
+        plt.rcParams['font.family'] = 'Microsoft Yahei'
         # figure and axes
         self.figure:Figure = plt.figure(figsize=figsize)
         self.figure.set_facecolor('w')
@@ -630,12 +632,22 @@ class QQPlot:
         self,
         sumstats:SummaryStats,
         color:str='#333333',
-        bg:str='#bbbbbb'
+        bg:str='#bbbbbb',
+        lc:str='#ff0000',
+        threshold:float=5e-8,
     ):
         self.sumstats  = sumstats
         self.color = color
         self.bg = bg
+        self.threshold = -np.log10(threshold)
+        self.lc = lc
     def draw(self):
+
+        plt.rcParams['figure.subplot.left']     = 0.15
+        plt.rcParams['figure.subplot.right']    = 0.85
+        plt.rcParams['figure.subplot.top']      = 0.85
+        plt.rcParams['figure.subplot.bottom']   = 0.15
+
         P_all = self.sumstats.data['pvalue']
         n = len(P_all) + 1
         expect = np.arange(1, n, dtype=float)
@@ -647,16 +659,18 @@ class QQPlot:
         obs = -np.log10(P_all).sort_values(ascending=True)
 
         plotdata = pd.DataFrame({'exp':expect,'obs':obs})
-        plotdata['weight'] = plotdata['obs'].map(lambda x:1 if x > 7.3 else x/7.3)
-        plotdata = plotdata.sample(n=50000,weights=plotdata['weight'])
+        plotdata['weight'] = plotdata['obs'].map(lambda x:1 if x > self.threshold else x/self.threshold)
+        # plotdata = plotdata.sample(n=50000,weights=plotdata['weight'])
+        # color
+        plotdata['color'] = plotdata['obs'].map(lambda x:self.color if x<self.threshold else '#DD0000')
         # plot
         self.figure = plt.figure(figsize = (4,4))
         self.figure.set_facecolor('w')
         ax = plt.subplot(111)
         ax.grid(linestyle=(0, (1, 3)),color='black')
         #ax.scatter(x = expect,y = obs,zorder = 2,alpha=1,color=plt.cm.OrRd(expect/np.max(expect)),s=10) #x轴是期望值，y轴是观测值
-        ax.scatter(x = plotdata['exp'],y = plotdata['obs'],zorder = 2,alpha=1,color=self.color,s=4) #x轴是期望值，y轴是观测值
-        ax.plot(np.linspace(0,max(expect),3),np.linspace(0,max(expect),3),linestyle='-',color = 'r',zorder=1)
+        ax.scatter(x = plotdata['exp'],y = plotdata['obs'],zorder = 2,alpha=1,color=plotdata['color'],s=4) #x轴是期望值，y轴是观测值
+        ax.plot(np.linspace(0,max(expect),3),np.linspace(0,max(expect),3),linestyle='-',color = self.lc,zorder=1,lw=0.5)
         ax.fill_between(expect, c025, c975, facecolor=self.bg,
                         zorder=0)
         ax.set_xlabel('Theoretical quantiles',size=12)
