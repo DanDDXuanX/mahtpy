@@ -130,7 +130,7 @@ class MahtPlot:
             plt.rcParams['figure.subplot.top']      = 1 - 0.03 * self.WHR
             plt.rcParams['figure.subplot.bottom']   = 0.03 * self.WHR
         # font
-        plt.rcParams['font.family'] = 'Microsoft Yahei'
+        # plt.rcParams['font.family'] = 'Microsoft Yahei'
         # figure and axes
         self.figure:Figure = plt.figure(figsize=figsize)
         self.figure.set_facecolor('w')
@@ -230,7 +230,7 @@ class MahtPlot:
                     x       = x_loc,
                     y       = - 3*yunit,
                     s       = '%.2f'%(x/1e6),
-                    fontsize= 14,
+                    fontsize= 18,
                     horizontalalignment = 'center',
                     verticalalignment   = 'top',
                     zorder = 3
@@ -238,9 +238,9 @@ class MahtPlot:
             # CHROM
             axes.text(
                 x   = np.pi,
-                y   = -10*yunit / self.yzoom,
+                y   = -15*yunit / self.yzoom,
                 s   = 'Chr%d(M)'%sumstats.chrom,
-                fontsize = 14,
+                fontsize = 18,
                 horizontalalignment = 'center',
                 verticalalignment   = 'center',
                 zorder = 3
@@ -312,7 +312,7 @@ class MahtPlot:
                     x       = x_loc,
                     y       = - 4 * yunit,
                     s       = chrom_label,
-                    fontsize= 14,
+                    fontsize= 18,
                     horizontalalignment = 'center',
                     verticalalignment   = 'top',
                     zorder = 3
@@ -320,9 +320,9 @@ class MahtPlot:
             # CHROM
             axes.text(
                 x   = np.pi,
-                y   = -10*yunit/self.yzoom,
+                y   = -15*yunit/self.yzoom,
                 s   = 'CHROM',
-                fontsize = 14,
+                fontsize = 18,
                 horizontalalignment = 'center',
                 verticalalignment   = 'center',
                 zorder = 4
@@ -341,7 +341,7 @@ class MahtPlot:
                 x   = -self.radian/100+gap,
                 y   = i,
                 s   = i,
-                fontsize    = 14,
+                fontsize    = 18,
                 horizontalalignment = 'right',
                 verticalalignment   = 'center'
                 )
@@ -354,10 +354,10 @@ class MahtPlot:
         # # --
         # axes.plot([-0.003*self.radian,1.003*self.radian],[ymax,ymax],color='k',zorder = 3)
         axes.text(
-            x   = (-0.022-0.01*np.ceil(np.log10(i))) * self.radian / self.xzoom + gap,
+            x   = (-0.04-0.01*np.ceil(np.log10(i))) * self.radian / self.xzoom + gap,
             y   = ymax/2,
             s   = '-log10(P)',
-            fontsize    = 14,
+            fontsize    = 18,
             rotation    = 90,
             horizontalalignment = 'center',
             verticalalignment   = 'center',
@@ -368,7 +368,7 @@ class MahtPlot:
             x   = self.radian/2,
             y   = ymax,
             s   = sumstats.name+': %d'%sumstats.data['size'].median(),
-            fontsize    =16,
+            fontsize    =20,
             horizontalalignment = 'center',
             verticalalignment   = 'bottom',
             zorder = 4
@@ -571,7 +571,7 @@ class MahtPlot:
                     color   = cr,
                     fontdict={
                         'fontstyle': 'italic',
-                        'size'     : 13
+                        'size'     : 18
                         },
                     horizontalalignment ='center',
                     verticalalignment   ='center'
@@ -673,8 +673,8 @@ class QQPlot:
         ax.plot(np.linspace(0,max(expect),3),np.linspace(0,max(expect),3),linestyle='-',color = self.lc,zorder=1,lw=0.5)
         ax.fill_between(expect, c025, c975, facecolor=self.bg,
                         zorder=0)
-        ax.set_xlabel('Theoretical quantiles',size=12)
-        ax.set_ylabel('Data quantiles',size=12)
+        ax.set_xlabel('Theoretical quantiles',size=15)
+        ax.set_ylabel('Data quantiles',size=15)
         # lambda gc
         ymin,ymax = ax.get_ylim()
         # 显示
